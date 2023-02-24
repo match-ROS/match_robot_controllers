@@ -9,19 +9,23 @@ from tf import transformations
 import math
 from copy import deepcopy
 
+# define global variables
+path = Path();
+active_robots = rospy.get_param("/active_robots", 3)
+robot_names = rospy.get_param("/robot_names", ["mir1", "mir2", "mir3"])
+relative_positions_x = rospy.get_param("/relative_positions_x", [0, 0, 0])
+relative_positions_y = rospy.get_param("/relative_positions_y", [0, 1, -1])
+
 # define state Parse_path
 class Get_path(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['formation_path_received'])
         
     def execute(self, userdata):
-        active_robots = rospy.get_param("/active_robots", 3)
-        robot_names = rospy.get_param("/robot_names", ["mir1", "mir2", "mir3"])
-        relative_positions_x = rospy.get_param("/relative_positions_x", [0, 0, 0])
-        relative_positions_y = rospy.get_param("/relative_positions_y", [0, 1, -1])
         formatin_plan_topic = rospy.get_param("/formation_plan_topic","/voronoi_planner/formation_plan")
         rospy.loginfo('Witing for path')
 
+        global path
         path = rospy.wait_for_message(formatin_plan_topic, Path)
         rospy.loginfo('formation path received')
         start_pose = path.poses[0].pose
@@ -34,11 +38,8 @@ class Get_path(smach.State):
             target_pose.position.y += relative_positions_x[i] * math.sin(theta) + relative_positions_y[i] * math.cos(theta)
             target_pose_ = [target_pose.position.x, target_pose.position.y, theta]
 
-            # set the target pose on the parameter server
-            rospy.set_param("/" + robot_names[i] + "/move_to_start_pose/target_pose",target_pose_)
-
             # launch the move_to_start_pose node                
-            process = launch_ros_node("move_to_start_pose","formation_controller","move_to_start_pose.py", "", robot_names[i])
+            process = launch_ros_node("move_to_start_pose","formation_controller","move_to_start_pose.py", "", robot_names[i], target_pose=target_pose_)
 
             # wait for the node to finish
             while process.is_alive():
@@ -46,23 +47,23 @@ class Get_path(smach.State):
                 pass
             rospy.loginfo(robot_names[i] + " in start pose")
 
-        rospy.wait_for_message('ur_path', Path)
-        rospy.loginfo('ur_path received')
-
         return 'formation_path_received'
 
 
 # define state Compute_trajectory
-class Compute_trajectory(smach.State):
+class Start_formation_controller(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['trajectories_received'])
+        smach.State.__init__(self, outcomes=['target_pose_reached', 'target_pose_not_reached'])
 
     def execute(self, userdata):
-        rospy.loginfo('Executing state Compute_trajectory')
-        # rospy.wait_for_message('mir_trajectory', Path)
-        # rospy.loginfo('mir_trajectory received')
-        rospy.wait_for_message('ur_trajectory', Path)
-        rospy.loginfo('ur_trajectory received')
+
+        path_array = []
+        for pose in path.poses:
+            theta = transformations.euler_from_quaternion([pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w])[2]
+            path_array.append([pose.pose.position.x, pose.pose.position.y , theta])
+
+        process = launch_ros_node("formation_controller","formation_controller","formation_controller.py")
+
         return 'trajectories_received'
         
 
@@ -105,8 +106,13 @@ class Follow_trajectory(smach.State):
         pass
         return 'done'
 
-def launch_ros_node(node_name, package_name, node_executable, node_args="", namespace="/"):
-    
+def launch_ros_node(node_name, package_name, node_executable, node_args="", namespace="/", **params):
+    # get param names from kwargs
+    param_names = params.keys()
+    # set params on param server
+    for param_name in param_names:
+        rospy.set_param(namespace + node_name + "/" + param_name, params[param_name])
+
     package = package_name
     executable = node_executable
     name = node_name
@@ -131,9 +137,9 @@ def main():
     with sm:
         # Add states to the container
         smach.StateMachine.add('Get_path', Get_path(), 
-                               transitions={'formation_path_received':'Compute_trajectory'})
-        smach.StateMachine.add('Compute_trajectory', Compute_trajectory(), 
-                               transitions={'trajectories_received':'Move_MiR_to_start_pose'})
+                               transitions={'formation_path_received':'Start_formation_controller'})
+        smach.StateMachine.add('Start_formation_controller', Start_formation_controller(), 
+                               transitions={'target_pose_reached':'Move_MiR_to_start_pose','target_pose_not_reached':'Move_MiR_to_start_pose'})
         smach.StateMachine.add('Move_MiR_to_start_pose', Move_MiR_to_start_pose(), 
                                transitions={'mir_initialized':'Move_UR_to_start_pose'})
         smach.StateMachine.add('Move_UR_to_start_pose', Move_UR_to_start_pose(),
