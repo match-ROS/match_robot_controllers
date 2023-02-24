@@ -3,16 +3,48 @@
 import rospy
 import smach
 from nav_msgs.msg import Path
+import roslaunch
+from tf import transformations
+import math
+from copy import deepcopy
 
 # define state Parse_path
 class Get_path(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['paths_received'])
+        smach.State.__init__(self, outcomes=['formation_path_received'])
         
     def execute(self, userdata):
-        rospy.loginfo('Executing state Parse_path')
-        rospy.wait_for_message('mir_path', Path)
-        rospy.loginfo('mir_path received')
+        active_robots = rospy.get_param("/active_robots", 2)
+        robot_names = rospy.get_param("/robot_names", ["mir1", "mir2"])
+        relative_positions_x = rospy.get_param("/relative_positions_x", [0, 0])
+        relative_positions_y = rospy.get_param("/relative_positions_y", [0, 1])
+        formatin_plan_topic = rospy.get_param("/formation_plan_topic","/voronoi_planner/formation_plan")
+        rospy.loginfo('Witing for path')
+
+        path = rospy.wait_for_message(formatin_plan_topic, Path)
+        rospy.loginfo('formation path received')
+        start_pose = path.poses[0].pose
+
+        for i in range(1,active_robots):
+            # compute the target pose 
+            target_pose = deepcopy(start_pose)
+            theta = transformations.euler_from_quaternion([target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w])[2]
+            target_pose.position.x += relative_positions_x[i] * math.cos(theta) - relative_positions_y[i] * math.sin(theta)
+            target_pose.position.y += relative_positions_x[i] * math.sin(theta) + relative_positions_y[i] * math.cos(theta)
+            target_pose_ = [target_pose.position.x, target_pose.position.y, theta]
+
+            # set the target pose on the parameter server
+            rospy.set_param("/" + robot_names[i] + "/move_to_start_pose/target_pose",target_pose_)
+
+            # launch the move_to_start_pose node                
+            process = launch_ros_node("move_to_start_pose","formation_controller","move_to_start_pose.py", "", robot_names[i])
+
+            # wait for the node to finish
+            while process.is_alive():
+                rospy.sleep(0.1)
+                pass
+            rospy.loginfo(robot_names[i] + " in start pose")
+
         rospy.wait_for_message('ur_path', Path)
         rospy.loginfo('ur_path received')
 
@@ -72,6 +104,19 @@ class Follow_trajectory(smach.State):
         pass
         return 'done'
 
+def launch_ros_node(node_name, package_name, node_executable, node_args="", namespace="/"):
+    
+    package = package_name
+    executable = node_executable
+    name = node_name
+    node = roslaunch.core.Node(package=package, node_type=executable, name=name, namespace=namespace,
+                                    machine_name=None, args=node_args, output="screen")
+    
+    launch = roslaunch.scriptapi.ROSLaunch()
+    launch.start()
+    process = launch.launch(node)
+    return process
+
 
 # main
 def main():
@@ -84,9 +129,8 @@ def main():
     # Open the container
     with sm:
         # Add states to the container
-        smach.StateMachine.add('Parse_path', Parse_path(), 
-                               transitions={'paths_received':'Compute_trajectory', 
-                                            'trajectories_received':'outcome4'})
+        smach.StateMachine.add('Get_path', Get_path(), 
+                               transitions={'formation_path_received':'Compute_trajectory'})
         smach.StateMachine.add('Compute_trajectory', Compute_trajectory(), 
                                transitions={'trajectories_received':'Move_MiR_to_start_pose'})
         smach.StateMachine.add('Move_MiR_to_start_pose', Move_MiR_to_start_pose(), 
@@ -97,8 +141,6 @@ def main():
                                 transitions={'done':'outcome5'})
     # Execute SMACH plan
     outcome = sm.execute()
-
-
 
 
 def init_ros_param_server():

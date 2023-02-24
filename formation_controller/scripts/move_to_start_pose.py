@@ -15,17 +15,16 @@ class Move_to_start_pose():
         self.angle_tolerance = rospy.get_param("~angle_tolerance", 0.1)
         self.control_rate = rospy.get_param("~control_rate", 50)
         self.target_pose = rospy.get_param("~target_pose", [5,1,0])
-        self.mir_ns = rospy.get_param("~mir_ns", "")
         
-        self.move_base_simple_goal_pub = rospy.Publisher(self.mir_ns + '/move_base_simple/goal', PoseStamped, queue_size=1)
-        self.cmd_vel_pub = rospy.Publisher(self.mir_ns + '/mobile_base_controller/cmd_vel', Twist, queue_size=1)
-        rospy.Subscriber(self.mir_ns + '/mir_pose_simple', Pose, self.mir_pose_callback)
+        self.move_base_simple_goal_pub = rospy.Publisher('move_base_simple/goal', PoseStamped, queue_size=1)
+        self.cmd_vel_pub = rospy.Publisher('mobile_base_controller/cmd_vel', Twist, queue_size=1)
+        rospy.Subscriber('mir_pose_simple', Pose, self.mir_pose_callback)
         rospy.sleep(0.1)
 
 
     def run(self):
         # send the robot to the target pose using move base action server
-        client = actionlib.SimpleActionClient(self.mir_ns + '/move_base_flex/move_base', MoveBaseAction)
+        client = actionlib.SimpleActionClient('move_base_flex/move_base', MoveBaseAction)
         client.wait_for_server()
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
@@ -46,7 +45,7 @@ class Move_to_start_pose():
             rospy.logerr("Action server not available!")
             rospy.signal_shutdown("Action server not available!")
         else:
-            print(client.get_result())
+            #print(client.get_result())
             # turn the robot to face the target pose
             self.turn_to_target_pose()
 
