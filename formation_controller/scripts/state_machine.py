@@ -39,10 +39,10 @@ class Get_path(smach.State):
             target_pose_ = [target_pose.position.x, target_pose.position.y, theta]
 
             # launch the move_to_start_pose node                
-            process = launch_ros_node("move_to_start_pose","formation_controller","move_to_start_pose.py", "", robot_names[i], target_pose=target_pose_)
+            process = launch_ros_node("move_to_start_pose","formation_controller","move_to_start_pose.py", robot_names[i], "", target_pose=target_pose_)
 
             # wait for the node to finish
-            while process.is_alive():
+            while process.is_alive() and not rospy.is_shutdown():
                 rospy.sleep(0.1)
                 pass
             rospy.loginfo(robot_names[i] + " in start pose")
@@ -62,9 +62,13 @@ class Start_formation_controller(smach.State):
             theta = transformations.euler_from_quaternion([pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w])[2]
             path_array.append([pose.pose.position.x, pose.pose.position.y , theta])
 
-        process = launch_ros_node("formation_controller","formation_controller","formation_controller.py")
+        process = launch_ros_node("formation_controller","formation_controller","formation_controller.py", "", "", path_array=path_array)
 
-        return 'trajectories_received'
+        while process.is_alive() and not rospy.is_shutdown():
+                rospy.sleep(0.1)
+                pass
+
+        return 'target_pose_reached'
         
 
 class Move_MiR_to_start_pose(smach.State):
@@ -106,7 +110,7 @@ class Follow_trajectory(smach.State):
         pass
         return 'done'
 
-def launch_ros_node(node_name, package_name, node_executable, node_args="", namespace="/", **params):
+def launch_ros_node(node_name, package_name, node_executable, namespace="/", node_args="", **params):
     # get param names from kwargs
     param_names = params.keys()
     # set params on param server
