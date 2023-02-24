@@ -14,10 +14,10 @@ class Get_path(smach.State):
         smach.State.__init__(self, outcomes=['formation_path_received'])
         
     def execute(self, userdata):
-        active_robots = rospy.get_param("/active_robots", 2)
-        robot_names = rospy.get_param("/robot_names", ["mir1", "mir2"])
-        relative_positions_x = rospy.get_param("/relative_positions_x", [0, 0])
-        relative_positions_y = rospy.get_param("/relative_positions_y", [0, 1])
+        active_robots = rospy.get_param("/active_robots", 3)
+        robot_names = rospy.get_param("/robot_names", ["mir1", "mir2", "mir3"])
+        relative_positions_x = rospy.get_param("/relative_positions_x", [0, 0, 0])
+        relative_positions_y = rospy.get_param("/relative_positions_y", [0, 1, -1])
         formatin_plan_topic = rospy.get_param("/formation_plan_topic","/voronoi_planner/formation_plan")
         rospy.loginfo('Witing for path')
 

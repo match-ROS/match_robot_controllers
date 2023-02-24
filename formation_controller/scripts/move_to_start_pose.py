@@ -6,6 +6,7 @@ from tf import transformations
 import actionlib
 #from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from mbf_msgs.msg import MoveBaseAction, MoveBaseGoal
+import math
 
 class Move_to_start_pose():
 
@@ -60,6 +61,12 @@ class Move_to_start_pose():
 
             # compute the difference between the current and target theta
             theta_diff = target_theta - self.current_theta
+
+            # make sure the difference is in the range [-pi, pi]
+            if theta_diff > math.pi:
+                theta_diff -= 2 * math.pi
+            elif theta_diff < -math.pi:
+                theta_diff += 2 * math.pi
 
             # compute the target velocity
             self.target_vel.angular.z = self.KP * theta_diff
