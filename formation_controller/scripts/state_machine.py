@@ -2,6 +2,7 @@
 
 import rospy
 import smach
+import smach_ros
 from nav_msgs.msg import Path
 import roslaunch
 from tf import transformations
@@ -48,7 +49,7 @@ class Get_path(smach.State):
         rospy.wait_for_message('ur_path', Path)
         rospy.loginfo('ur_path received')
 
-        return 'paths_received'
+        return 'formation_path_received'
 
 
 # define state Compute_trajectory
@@ -140,6 +141,10 @@ def main():
         smach.StateMachine.add('Follow_trajectory', Follow_trajectory(),
                                 transitions={'done':'outcome5'})
     # Execute SMACH plan
+
+    sis = smach_ros.IntrospectionServer('server_name', sm, '/SM_ROOT')
+    sis.start()
+
     outcome = sm.execute()
 
 
