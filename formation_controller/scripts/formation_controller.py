@@ -27,27 +27,33 @@ class Formation_controller():
 
 
     def run(self):
+        # init variables
         path_index = 0
+        distances = [0.0 for i in range(len(self.robot_names))]
+        target_vels = [0.0 for i in range(len(self.robot_names))]
 
         while path_index < len(self.path_array)-1 and not rospy.is_shutdown() :
             # compute distance to next point
-            distance = math.sqrt((self.path_array[path_index][0] - self.mir_pose.position.x)**2 + (self.path_array[path_index][1] - self.mir_pose.position.y)**2)
+            for i in range(len(self.robot_names)):
+                distances[i] = math.sqrt((self.path_array[path_index][0] - self.mir_pose.position.x)**2 + (self.path_array[path_index][1] - self.mir_pose.position.y)**2)
 
             # compute target velocity
-            target_vel = self.KP_vel * distance
+            for i in range(len(self.robot_names)):
+                target_vels[i] = self.KP_vel * distances[i]
 
-            # limit target aceeleration
-            if abs(target_vel - self.current_vel) > self.acceleration_limit_lin:
-                if target_vel > self.current_vel:
-                    target_vel = self.current_vel + self.acceleration_limit_lin
-                else:
-                    target_vel = self.current_vel - self.acceleration_limit_lin 
+            # limit target velocities
+            vel_scaling_factor = 1.0
+            for i in range(len(self.robot_names)):
+                if abs(target_vels[i] - self.current_vel) > self.acceleration_limit_lin:
+                    if (self.acceleration_limit_lin / abs(target_vels[i] - self.current_vel)) < vel_scaling_factor:
+                        vel_scaling_factor = self.acceleration_limit_lin / abs(target_vels[i] - self.current_vel)
 
             # check if next point is reached
-            if distance < self.target_vel:
-                path_index += 1
-                print("Next point")
-                break
+            for i in range(len(self.robot_names)):
+                if distances[i] < self.target_vel:
+                    path_index += 1
+                    print("Next point")
+                    break
 
             # compute next target point
             target_point = [0.0, 0.0]
