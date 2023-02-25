@@ -31,6 +31,9 @@ class Formation_controller():
         path_index = 0
         distances = [0.0 for i in range(len(self.robot_names))]
         target_vels = [0.0 for i in range(len(self.robot_names))]
+        target_points = [[0.0, 0.0] for i in range(len(self.robot_names))]
+        target_angles = [0.0 for i in range(len(self.robot_names))]
+        target_omegas = [0.0 for i in range(len(self.robot_names))]
 
         while path_index < len(self.path_array)-1 and not rospy.is_shutdown() :
             # compute distance to next point
@@ -56,25 +59,34 @@ class Formation_controller():
                     break
 
             # compute next target point
-            target_point = [0.0, 0.0]
-            target_point[0] = self.path_array[path_index][0]*0.5 + self.path_array[path_index+1][0]*0.5
-            target_point[1] = self.path_array[path_index][1]*0.5 + self.path_array[path_index+1][1]*0.5
+            for i in range(len(self.robot_names)):
+                target_points[i][0] = self.robot_paths_x[i][path_index]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
+                target_points[i][1] = self.robot_paths_y[i][path_index]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
+
             
             # compute angle to target point
-            angle = math.atan2(target_point[1] - self.mir_pose.position.y, target_point[0] - self.mir_pose.position.x)
+            for i in range(len(self.robot_names)):
+                target_angles[i] = math.atan2(target_points[i][1] - self.mir_pose.position.y, target_points[i][0] - self.mir_pose.position.x)
 
             # compute angle error
-            angle_error = angle - self.current_theta
+            for i in range(len(self.robot_names)):
+                angle_error = target_angles[i] - self.current_theta
+                target_omegas[i] = self.KP_omega * angle_error
 
-            # compute omega
-            target_omega = self.KP_omega * angle_error
+            # update velocity scaling factor
+            for i in range(len(self.robot_names)):
+                if abs(target_omegas[i] - self.current_omega) > self.acceleration_limit_ang:
+                    if (self.acceleration_limit_ang / abs(target_omegas[i] - self.current_omega)) < vel_scaling_factor:
+                        vel_scaling_factor = self.acceleration_limit_ang / abs(target_omegas[i] - self.current_omega)
 
-            # limit target aceeleration
-            if abs(target_omega - self.current_omega) > self.acceleration_limit_ang:
-                if target_omega > self.current_omega:
-                    target_omega = self.current_omega + self.acceleration_limit_ang
-                else:
-                    target_omega = self.current_omega - self.acceleration_limit_ang
+            # apple velocity scaling factor
+            for i in range(len(self.robot_names)):
+                target_vels[i] *= vel_scaling_factor
+                target_omegas[i] *= vel_scaling_factor
+
+            # publish target velocities
+            for i in range(len(self.robot_names)):
+                pass
             
             
 
