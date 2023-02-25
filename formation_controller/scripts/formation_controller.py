@@ -11,12 +11,16 @@ class Formation_controller():
 
     def __init__(self):
         self.path_array = rospy.get_param("~path_array", [])
+        self.relative_positions_x = rospy.get_param("~relative_positions_x", [0, 0, 0])
+        self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 1, -1])
+        self.robot_names = rospy.get_param("~robot_names", ["mir1", "mir2", "mir3"])
         self.current_vel = 0.0
         self.current_omega = 0.0
         self.KP_vel = 0.5
         self.KP_omega = 0.5
         self.acceleration_limit_lin = 1.0
         self.acceleration_limit_ang = 1.0
+
 
         rospy.Subscriber('mir_pose_simple', Pose, self.mir_pose_callback)   
         pass
@@ -57,12 +61,26 @@ class Formation_controller():
             angle_error = angle - self.current_theta
 
             # compute omega
+            target_omega = self.KP_omega * angle_error
 
+            # limit target aceeleration
+            if abs(target_omega - self.current_omega) > self.acceleration_limit_ang:
+                if target_omega > self.current_omega:
+                    target_omega = self.current_omega + self.acceleration_limit_ang
+                else:
+                    target_omega = self.current_omega - self.acceleration_limit_ang
             
             
-            print(self.path_array[i][0])
 
-
+    def derive_robot_paths(self):
+        # derive robot paths from path_array
+        self.robot_paths_x = []
+        self.robot_paths_y = []
+        self.robot_paths_theta = []
+        for idx in range(0,len(self.robot_names)):
+            for i in range(len(self.path_array)):
+                self.robot_paths_x[idx].append(self.path_array[i][0] + self.relative_positions_x[idx] * math.cos(self.path_array[i][2]) - self.relative_positions_y[idx] * math.sin(self.path_array[i][2]))
+                self.robot_paths_y[idx].append(self.path_array[i][1] + self.relative_positions_x[idx] * math.sin(self.path_array[i][2]) + self.relative_positions_y[idx] * math.cos(self.path_array[i][2]))
 
     def mir_pose_callback(self, msg):
         self.mir_pose = msg

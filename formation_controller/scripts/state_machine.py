@@ -62,7 +62,9 @@ class Start_formation_controller(smach.State):
             theta = transformations.euler_from_quaternion([pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w])[2]
             path_array.append([pose.pose.position.x, pose.pose.position.y , theta])
 
-        process = launch_ros_node("formation_controller","formation_controller","formation_controller.py", "", "", path_array=path_array)
+        process = launch_ros_node("formation_controller","formation_controller","formation_controller.py", 
+                                  "", "", path_array=path_array, active_robots=active_robots,
+                                    robot_names=robot_names, relative_positions_x=relative_positions_x, relative_positions_y=relative_positions_y)
 
         while process.is_alive() and not rospy.is_shutdown():
                 rospy.sleep(0.1)
