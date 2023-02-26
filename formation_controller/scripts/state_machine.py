@@ -31,6 +31,7 @@ class Get_path(smach.State):
         start_pose = path.poses[0].pose
 
         for i in range(1,active_robots):
+            continue
             # compute the target pose 
             target_pose = deepcopy(start_pose)
             theta = transformations.euler_from_quaternion([target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w])[2]

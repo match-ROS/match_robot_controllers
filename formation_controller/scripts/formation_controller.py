@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import rospy
-from nav_msgs.msg import Path
-from geometry_msgs.msg import Pose, PoseStamped
+from nav_msgs.msg import Path 
+from geometry_msgs.msg import Pose, PoseStamped, Twist
 from tf import transformations
 import math
 
@@ -19,12 +19,15 @@ class Formation_controller():
         self.current_omega = 0.0
         self.KP_vel = 0.5
         self.KP_omega = 0.5
+        self.control_rate = rospy.get_param("~control_rate", 50.0)
         self.acceleration_limit_lin = 1.0
         self.acceleration_limit_ang = 1.0
         self.robot_path_publishers = []
+        self.robot_twist_publishers = []
         
         for i in range(len(self.robot_names)):
             self.robot_path_publishers.append(rospy.Publisher(self.robot_names[i] + '/robot_path', Path, queue_size=1))
+            self.robot_twist_publishers.append(rospy.Publisher(self.robot_names[i] + '/mobile_base_controller/cmd_vel', Twist, queue_size=1))
 
         for i in range(len(self.robot_names)):
             rospy.Subscriber(self.robot_names[i] + '/mir_pose_simple', Pose, self.mir_pose_callback, i)   
@@ -41,7 +44,10 @@ class Formation_controller():
         target_points = [[0.0, 0.0] for i in range(len(self.robot_names))]
         target_angles = [0.0 for i in range(len(self.robot_names))]
         target_omegas = [0.0 for i in range(len(self.robot_names))]
+        target_poses = [Pose() for i in range(len(self.robot_names))]
 
+        rate = rospy.Rate(self.control_rate)
+        # main loop
         while path_index < len(self.path_array)-1 and not rospy.is_shutdown() :
             # compute distance to next point
             for i in range(len(self.robot_names)):
@@ -87,16 +93,62 @@ class Formation_controller():
                     if (self.acceleration_limit_ang / abs(target_omegas[i] - self.current_omega)) < vel_scaling_factor:
                         vel_scaling_factor = self.acceleration_limit_ang / abs(target_omegas[i] - self.current_omega)
 
-            # apple velocity scaling factor
+            # apply velocity scaling factor
             for i in range(len(self.robot_names)):
                 target_vels[i] *= vel_scaling_factor
                 target_omegas[i] *= vel_scaling_factor
 
-            # publish target velocities
+            # compute target pose for each robot
             for i in range(len(self.robot_names)):
-                pass
+                target_poses[i].position.x = self.mir_poses[i].position.x + target_vels[i] * math.cos(target_angles[i])
+                target_poses[i].position.y = self.mir_poses[i].position.y + target_vels[i] * math.sin(target_angles[i])
+                q = transformations.quaternion_from_euler(0.0, 0.0, target_angles[i])
+                target_poses[i].orientation.x = q[0]
+                target_poses[i].orientation.y = q[1]
+                target_poses[i].orientation.z = q[2]
+                target_poses[i].orientation.w = q[3]
+
+            # compute control law and publish target velocities
+            for i in range(len(self.robot_names)):
+                target_velocity = Twist()
+                target_velocity.linear.x = target_vels[i]
+                target_velocity.angular.z = target_omegas[i]
+                u_v, v_w = self.cartesian_controller(self.mir_poses[i],target_poses[i],target_velocity)
+
+                # publish target velocities
+                target_velocity.linear.x = u_v
+                target_velocity.angular.z = v_w
+                self.robot_twist_publishers[i].publish(target_velocity)
+
+            path_index += 1
+            rate.sleep()
+
+            
+
             
             
+
+    def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist()):
+        Kv = 0.0
+        Ky = 0.1
+        Kx = 0.0
+        phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
+        phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
+
+        e_x = (target_pose.position.x-actual_pose.position.x)
+        e_y = (target_pose.position.x - actual_pose.position.y)
+        #rospy.loginfo_throttle(1,[id,e_x,e_y])
+        e_local_x = math.cos(phi_act[2]) * e_x + math.sin(phi_act[2]) * e_y
+        e_local_y = math.cos(phi_act[2]) * e_y - math.sin(phi_act[2]) * e_x
+
+        #print(target_velocity)
+
+        u_w = target_velocity.angular.z + target_velocity.linear.x * Kv * e_local_y + Ky * math.sin(phi_target[2]-phi_act[2])
+        u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + Kx*e_local_x
+
+        return u_v, u_w
+
+
 
     def derive_robot_paths(self):
         # derive robot paths from path_array
@@ -117,6 +169,9 @@ class Formation_controller():
         robot_path.header.frame_id = "map"
         robot_path.header.stamp = rospy.Time.now()
         for i in range(len(self.robot_names)):
+            robot_path = Path()
+            robot_path.header.frame_id = "map"
+            robot_path.header.stamp = rospy.Time.now()
             for j in range(len(self.robot_paths_x[i])):
                 pose = PoseStamped()
                 pose.header.frame_id = "map"
@@ -131,6 +186,7 @@ class Formation_controller():
                 pose.pose.orientation.w = q[3]
                 robot_path.poses.append(pose)
             self.robot_path_publishers[i].publish(robot_path)
+            rospy.sleep(0.5)
 
     def mir_pose_callback(self, msg, i):
         self.mir_poses[i] = msg
@@ -140,8 +196,8 @@ class Formation_controller():
 
 if __name__ == "__main__":
     try:
-        rospy.init_node('move_to_start_pose')
-        rospy.loginfo('move_to_start_pose node started')
+        rospy.init_node('formation_controller')
+        rospy.loginfo('formation_controller node started')
         exe = Formation_controller()
         exe.run()
     except rospy.ROSInterruptException:
