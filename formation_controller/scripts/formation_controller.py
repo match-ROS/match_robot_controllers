@@ -73,7 +73,7 @@ class Formation_controller():
             
             # compute angle to target point
             for i in range(len(self.robot_names)):
-                target_angles[i] = math.atan2(target_points[i][1] - self.mir_pose[i].position.y, target_points[i][0] - self.mir_pose[i].position.x)
+                target_angles[i] = math.atan2(target_points[i][1] - self.mir_poses[i].position.y, target_points[i][0] - self.mir_poses[i].position.x)
 
             # compute angle error
             for i in range(len(self.robot_names)):
@@ -100,9 +100,9 @@ class Formation_controller():
 
     def derive_robot_paths(self):
         # derive robot paths from path_array
-        self.robot_paths_x = []
-        self.robot_paths_y = []
-        self.robot_paths_theta = []
+        self.robot_paths_x = [ [] for i in range(len(self.robot_names))]
+        self.robot_paths_y = [ [] for i in range(len(self.robot_names))]
+        self.robot_paths_theta = [ [] for i in range(len(self.robot_names))]
         for idx in range(0,len(self.robot_names)):
             for i in range(len(self.path_array)):
                 self.robot_paths_x[idx].append(self.path_array[i][0] + self.relative_positions_x[idx] * math.cos(self.path_array[i][2]) - self.relative_positions_y[idx] * math.sin(self.path_array[i][2]))
