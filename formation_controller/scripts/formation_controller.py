@@ -57,7 +57,7 @@ class Formation_controller():
         while path_index < len(self.path_array)-2 and not rospy.is_shutdown() :
             # compute distance to next point
             for i in range(len(self.robot_names)):
-                distances[i] = math.sqrt((self.path_array[path_index][0] - self.mir_poses[i].position.x)**2 + (self.path_array[path_index][1] - self.mir_poses[i].position.y)**2)
+                distances[i] = math.sqrt((self.path_array[path_index][0] - target_poses[i].position.x)**2 + (self.path_array[path_index][1] - target_poses[i].position.y)**2)
 
             # compute target velocity
             for i in range(len(self.robot_names)):
@@ -85,9 +85,10 @@ class Formation_controller():
 
             # compute next target point
             for i in range(len(self.robot_names)):
-                target_points[i][0] = self.robot_paths_x[i][path_index+2]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
-                target_points[i][1] = self.robot_paths_y[i][path_index+2]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
-
+                # target_points[i][0] = self.robot_paths_x[i][path_index+2]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
+                # target_points[i][1] = self.robot_paths_y[i][path_index+2]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
+                target_points[i][0] = self.robot_paths_x[i][path_index+1]
+                target_points[i][1] = self.robot_paths_y[i][path_index+1]
             
             # compute angle to target point
             for i in range(len(self.robot_names)):
