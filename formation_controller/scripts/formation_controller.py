@@ -17,9 +17,11 @@ class Formation_controller():
         self.mir_poses = [Pose() for i in range(len(self.robot_names))]
         self.current_vel = 0.0
         self.current_omega = 0.0
-        self.KP_vel = 0.5
-        self.KP_omega = 0.5
-        self.control_rate = rospy.get_param("~control_rate", 50.0)
+        self.KP_vel = 1.0
+        self.KP_omega = 1.0
+        self.control_rate = rospy.get_param("~control_rate", 100.0)
+        self.velocity_limit_lin = 0.2
+        self.velocity_limit_ang = 0.4
         self.acceleration_limit_lin = 1.0
         self.acceleration_limit_ang = 1.0
         self.robot_path_publishers = []
@@ -53,12 +55,23 @@ class Formation_controller():
             for i in range(len(self.robot_names)):
                 distances[i] = math.sqrt((self.path_array[path_index][0] - self.mir_poses[i].position.x)**2 + (self.path_array[path_index][1] - self.mir_poses[i].position.y)**2)
 
+
+            rospy.loginfo_throttle(1.0, "pose x: " + str(self.mir_poses[i].position.x))
+            rospy.loginfo_throttle(1.0, "pose y: " + str(self.mir_poses[i].position.y))
+            rospy.loginfo_throttle(1,"distances: " + str(distances))
+
             # compute target velocity
             for i in range(len(self.robot_names)):
-                target_vels[i] = self.KP_vel * distances[i]
+                target_vels[i] = self.velocity_limit_lin #self.KP_vel * distances[i] * self.control_rate
 
-            # limit target velocities
+            # limit target velocity
             vel_scaling_factor = 1.0
+            for i in range(len(self.robot_names)):
+                if abs(target_vels[i]) > self.velocity_limit_lin:
+                    if (self.velocity_limit_lin / abs(target_vels[i])) < vel_scaling_factor:
+                        vel_scaling_factor = self.velocity_limit_lin / abs(target_vels[i])
+
+            # limit target acceleration
             for i in range(len(self.robot_names)):
                 if abs(target_vels[i] - self.current_vel) > self.acceleration_limit_lin:
                     if (self.acceleration_limit_lin / abs(target_vels[i] - self.current_vel)) < vel_scaling_factor:
@@ -66,7 +79,7 @@ class Formation_controller():
 
             # check if next point is reached
             for i in range(len(self.robot_names)):
-                if distances[i] < target_vels[i]:
+                if distances[i] < target_vels[i]*vel_scaling_factor:
                     path_index += 1
                     print("Next point")
                     break
@@ -87,7 +100,13 @@ class Formation_controller():
                 angle_error = target_angles[i] - current_theta
                 target_omegas[i] = self.KP_omega * angle_error
 
-            # update velocity scaling factor
+            # limit angular velocity
+            for i in range(len(self.robot_names)):
+                if abs(target_omegas[i]) > self.velocity_limit_ang:
+                    if (self.velocity_limit_ang / abs(target_omegas[i])) < vel_scaling_factor:
+                        vel_scaling_factor = self.velocity_limit_ang / abs(target_omegas[i])
+
+            # limit angular acceleration
             for i in range(len(self.robot_names)):
                 if abs(target_omegas[i] - self.current_omega) > self.acceleration_limit_ang:
                     if (self.acceleration_limit_ang / abs(target_omegas[i] - self.current_omega)) < vel_scaling_factor:
@@ -120,7 +139,6 @@ class Formation_controller():
                 target_velocity.angular.z = v_w
                 self.robot_twist_publishers[i].publish(target_velocity)
 
-            path_index += 1
             rate.sleep()
 
             
@@ -129,9 +147,9 @@ class Formation_controller():
             
 
     def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist()):
-        Kv = 0.0
+        Kv = 0.1
         Ky = 0.1
-        Kx = 0.0
+        Kx = 0.1
         phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
 
