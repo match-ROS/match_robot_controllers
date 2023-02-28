@@ -3,7 +3,7 @@
 import rospy
 from nav_msgs.msg import Path 
 from geometry_msgs.msg import Pose, PoseStamped, Twist
-from tf import transformations
+from tf import transformations, broadcaster
 import math
 
 
@@ -15,6 +15,7 @@ class Formation_controller():
         self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 1, -1])
         self.robot_names = rospy.get_param("~robot_names", ["mir1", "mir2", "mir3"])
         self.mir_poses = [Pose() for i in range(len(self.robot_names))]
+        self.target_pose_broadcaster = broadcaster.TransformBroadcaster()
         self.current_vel = 0.0
         self.current_omega = 0.0
         self.KP_vel = 1.0
@@ -23,7 +24,7 @@ class Formation_controller():
         self.velocity_limit_lin = 0.2
         self.velocity_limit_ang = 0.4
         self.acceleration_limit_lin = 1.0
-        self.acceleration_limit_ang = 1.0
+        self.acceleration_limit_ang = 2.0
         self.robot_path_publishers = []
         self.robot_twist_publishers = []
         
@@ -47,18 +48,16 @@ class Formation_controller():
         target_angles = [0.0 for i in range(len(self.robot_names))]
         target_omegas = [0.0 for i in range(len(self.robot_names))]
         target_poses = [Pose() for i in range(len(self.robot_names))]
+        current_vels = [0.0 for i in range(len(self.robot_names))]
+        current_omegas = [0.0 for i in range(len(self.robot_names))]
+        current_thetas = [0.0 for i in range(len(self.robot_names))]
 
         rate = rospy.Rate(self.control_rate)
         # main loop
-        while path_index < len(self.path_array)-1 and not rospy.is_shutdown() :
+        while path_index < len(self.path_array)-2 and not rospy.is_shutdown() :
             # compute distance to next point
             for i in range(len(self.robot_names)):
                 distances[i] = math.sqrt((self.path_array[path_index][0] - self.mir_poses[i].position.x)**2 + (self.path_array[path_index][1] - self.mir_poses[i].position.y)**2)
-
-
-            rospy.loginfo_throttle(1.0, "pose x: " + str(self.mir_poses[i].position.x))
-            rospy.loginfo_throttle(1.0, "pose y: " + str(self.mir_poses[i].position.y))
-            rospy.loginfo_throttle(1,"distances: " + str(distances))
 
             # compute target velocity
             for i in range(len(self.robot_names)):
@@ -86,18 +85,19 @@ class Formation_controller():
 
             # compute next target point
             for i in range(len(self.robot_names)):
-                target_points[i][0] = self.robot_paths_x[i][path_index]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
-                target_points[i][1] = self.robot_paths_y[i][path_index]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
+                target_points[i][0] = self.robot_paths_x[i][path_index+2]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
+                target_points[i][1] = self.robot_paths_y[i][path_index+2]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
 
             
             # compute angle to target point
             for i in range(len(self.robot_names)):
-                target_angles[i] = math.atan2(target_points[i][1] - self.mir_poses[i].position.y, target_points[i][0] - self.mir_poses[i].position.x)
+                target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index], target_points[i][0] - self.robot_paths_x[i][path_index])
 
             # compute angle error
             for i in range(len(self.robot_names)):
-                current_theta = transformations.euler_from_quaternion([self.mir_poses[i].orientation.x, self.mir_poses[i].orientation.y, self.mir_poses[i].orientation.z, self.mir_poses[i].orientation.w])[2]
-                angle_error = target_angles[i] - current_theta
+                #current_theta = transformations.euler_from_quaternion([self.mir_poses[i].orientation.x, self.mir_poses[i].orientation.y, self.mir_poses[i].orientation.z, self.mir_poses[i].orientation.w])[2]
+                angle_error = target_angles[i] - current_thetas[i]
+                print("Angle error: " + str(angle_error))
                 target_omegas[i] = self.KP_omega * angle_error
 
             # limit angular velocity
@@ -119,13 +119,22 @@ class Formation_controller():
 
             # compute target pose for each robot
             for i in range(len(self.robot_names)):
-                target_poses[i].position.x = self.mir_poses[i].position.x + target_vels[i] * math.cos(target_angles[i])
-                target_poses[i].position.y = self.mir_poses[i].position.y + target_vels[i] * math.sin(target_angles[i])
+                target_poses[i].position.x += target_vels[i] * math.cos(target_angles[i]) * rate.sleep_dur.to_sec()
+                target_poses[i].position.y += target_vels[i] * math.sin(target_angles[i]) * rate.sleep_dur.to_sec()
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angles[i])
                 target_poses[i].orientation.x = q[0]
                 target_poses[i].orientation.y = q[1]
                 target_poses[i].orientation.z = q[2]
                 target_poses[i].orientation.w = q[3]
+
+            # broadcast target poses
+            for i in range(len(self.robot_names)):
+                self.target_pose_broadcaster.sendTransform((target_poses[i].position.x, target_poses[i].position.y, 0.0),
+                                            (target_poses[i].orientation.x, target_poses[i].orientation.y, target_poses[i].orientation.z, target_poses[i].orientation.w),
+                                            rospy.Time.now(),
+                                            "target_pose_" + str(i),
+                                            "map")
+
 
             # compute control law and publish target velocities
             for i in range(len(self.robot_names)):
@@ -139,6 +148,12 @@ class Formation_controller():
                 target_velocity.angular.z = v_w
                 self.robot_twist_publishers[i].publish(target_velocity)
 
+                # update current velocities
+                current_vels[i] = u_v
+                current_omegas[i] = v_w
+                current_thetas[i] += v_w * rate.sleep_dur.to_sec()
+
+
             rate.sleep()
 
             
@@ -147,9 +162,9 @@ class Formation_controller():
             
 
     def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist()):
-        Kv = 0.1
-        Ky = 0.1
-        Kx = 0.1
+        Kv = 0.2
+        Ky = 0.2
+        Kx = 0.2
         phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
 
