@@ -52,6 +52,20 @@ class Formation_controller():
         current_omegas = [0.0 for i in range(len(self.robot_names))]
         current_thetas = [0.0 for i in range(len(self.robot_names))]
 
+
+
+        # init target poses depending on relative positions
+        for i in range(len(self.robot_names)):
+            target_poses[i].position.x = self.path_array[0][0] + self.relative_positions_x[i] * math.cos(self.path_array[0][2]) - self.relative_positions_y[i] * math.sin(self.path_array[0][2])
+            target_poses[i].position.y = self.path_array[0][1] + self.relative_positions_x[i] * math.sin(self.path_array[0][2]) + self.relative_positions_y[i] * math.cos(self.path_array[0][2])
+            target_poses[i].position.z = 0.0
+            q = transformations.quaternion_from_euler(0, 0, self.path_array[0][2])
+            target_poses[i].orientation.x = q[0]
+            target_poses[i].orientation.y = q[1]
+            target_poses[i].orientation.z = q[2]    
+            target_poses[i].orientation.w = q[3]
+
+
         rate = rospy.Rate(self.control_rate)
         # main loop
         while path_index < len(self.path_array)-2 and not rospy.is_shutdown() :
@@ -72,9 +86,9 @@ class Formation_controller():
 
             # limit target acceleration
             for i in range(len(self.robot_names)):
-                if abs(target_vels[i] - self.current_vel) > self.acceleration_limit_lin:
-                    if (self.acceleration_limit_lin / abs(target_vels[i] - self.current_vel)) < vel_scaling_factor:
-                        vel_scaling_factor = self.acceleration_limit_lin / abs(target_vels[i] - self.current_vel)
+                if abs(target_vels[i] - current_vels[i]) > self.acceleration_limit_lin:
+                    if (self.acceleration_limit_lin / abs(target_vels[i] - current_vels[i])) < vel_scaling_factor:
+                        vel_scaling_factor = self.acceleration_limit_lin / abs(target_vels[i] - current_vels[i])
 
             # check if next point is reached
             for i in range(len(self.robot_names)):
@@ -85,11 +99,13 @@ class Formation_controller():
 
             # compute next target point
             for i in range(len(self.robot_names)):
+                # compute t based on the distance to the next point
                 # target_points[i][0] = self.robot_paths_x[i][path_index+2]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
                 # target_points[i][1] = self.robot_paths_y[i][path_index+2]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
                 target_points[i][0] = self.robot_paths_x[i][path_index+1]
                 target_points[i][1] = self.robot_paths_y[i][path_index+1]
-            
+
+
             # compute angle to target point
             for i in range(len(self.robot_names)):
                 target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index], target_points[i][0] - self.robot_paths_x[i][path_index])
@@ -98,7 +114,6 @@ class Formation_controller():
             for i in range(len(self.robot_names)):
                 #current_theta = transformations.euler_from_quaternion([self.mir_poses[i].orientation.x, self.mir_poses[i].orientation.y, self.mir_poses[i].orientation.z, self.mir_poses[i].orientation.w])[2]
                 angle_error = target_angles[i] - current_thetas[i]
-                print("Angle error: " + str(angle_error))
                 target_omegas[i] = self.KP_omega * angle_error
 
             # limit angular velocity
@@ -120,8 +135,8 @@ class Formation_controller():
 
             # compute target pose for each robot
             for i in range(len(self.robot_names)):
-                target_poses[i].position.x += target_vels[i] * math.cos(target_angles[i]) * rate.sleep_dur.to_sec()
-                target_poses[i].position.y += target_vels[i] * math.sin(target_angles[i]) * rate.sleep_dur.to_sec()
+                target_poses[i].position.x += target_vels[i] * math.cos(current_thetas[i]+target_omegas[i]) * rate.sleep_dur.to_sec()
+                target_poses[i].position.y += target_vels[i] * math.sin(current_thetas[i]+target_omegas[i]) * rate.sleep_dur.to_sec()
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angles[i])
                 target_poses[i].orientation.x = q[0]
                 target_poses[i].orientation.y = q[1]
