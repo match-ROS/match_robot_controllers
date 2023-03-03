@@ -41,7 +41,7 @@ class Formation_controller():
     def run(self):
         self.derive_robot_paths()
         # init variables
-        path_index = 0
+        path_index = 1
         distances = [0.0 for i in range(len(self.robot_names))]
         target_vels = [0.0 for i in range(len(self.robot_names))]
         target_points = [[0.0, 0.0] for i in range(len(self.robot_names))]
@@ -56,8 +56,10 @@ class Formation_controller():
 
         # init target poses depending on relative positions
         for i in range(len(self.robot_names)):
-            target_poses[i].position.x = self.path_array[0][0] + self.relative_positions_x[i] * math.cos(self.path_array[0][2]) - self.relative_positions_y[i] * math.sin(self.path_array[0][2])
-            target_poses[i].position.y = self.path_array[0][1] + self.relative_positions_x[i] * math.sin(self.path_array[0][2]) + self.relative_positions_y[i] * math.cos(self.path_array[0][2])
+            target_poses[i].position.x = self.robot_paths_x[i][0]
+            target_poses[i].position.y = self.robot_paths_y[i][0]
+            #target_poses[i].position.x = self.path_array[0][0] + self.relative_positions_x[i] * math.cos(self.path_array[0][2]) - self.relative_positions_y[i] * math.sin(self.path_array[0][2])
+            #target_poses[i].position.y = self.path_array[0][1] + self.relative_positions_x[i] * math.sin(self.path_array[0][2]) + self.relative_positions_y[i] * math.cos(self.path_array[0][2])
             target_poses[i].position.z = 0.0
             q = transformations.quaternion_from_euler(0, 0, self.path_array[0][2])
             target_poses[i].orientation.x = q[0]
@@ -71,24 +73,33 @@ class Formation_controller():
         while path_index < len(self.path_array)-2 and not rospy.is_shutdown() :
             # compute distance to next point
             for i in range(len(self.robot_names)):
-                distances[i] = math.sqrt((self.path_array[path_index][0] - target_poses[i].position.x)**2 + (self.path_array[path_index][1] - target_poses[i].position.y)**2)
+                distances[i] = math.sqrt((self.robot_paths_x[i][path_index] - target_poses[i].position.x)**2 + (self.robot_paths_y[i][path_index] - target_poses[i].position.y)**2)
 
             # compute target velocity
             for i in range(len(self.robot_names)):
-                target_vels[i] = self.velocity_limit_lin #self.KP_vel * distances[i] * self.control_rate
+                target_vels[i] = self.KP_vel * distances[i] * self.control_rate
 
             # limit target velocity
             vel_scaling_factor = 1.0
             for i in range(len(self.robot_names)):
                 if abs(target_vels[i]) > self.velocity_limit_lin:
-                    if (self.velocity_limit_lin / abs(target_vels[i])) < vel_scaling_factor:
-                        vel_scaling_factor = self.velocity_limit_lin / abs(target_vels[i])
+                    if (abs(target_vels[i]) / self.velocity_limit_lin) < vel_scaling_factor:
+                        vel_scaling_factor = abs(target_vels[i]) / self.velocity_limit_lin
+            rospy.loginfo("vel_scaling_factor: " + str(vel_scaling_factor))
+
+            # apply velocity scaling factor
+            for i in range(len(self.robot_names)):
+                target_vels[i] = target_vels[i] * vel_scaling_factor
 
             # limit target acceleration
             for i in range(len(self.robot_names)):
                 if abs(target_vels[i] - current_vels[i]) > self.acceleration_limit_lin:
                     if (self.acceleration_limit_lin / abs(target_vels[i] - current_vels[i])) < vel_scaling_factor:
                         vel_scaling_factor = self.acceleration_limit_lin / abs(target_vels[i] - current_vels[i])
+            
+            # apply velocity scaling factor
+            for i in range(len(self.robot_names)):
+                target_vels[i] = target_vels[i] * vel_scaling_factor
 
             # check if next point is reached
             for i in range(len(self.robot_names)):
@@ -151,6 +162,12 @@ class Formation_controller():
                                             "target_pose_" + str(i),
                                             "map")
 
+            # update current velocities
+            for i in range(len(self.robot_names)):
+                current_vels[i] = target_vels[i]
+                current_omegas[i] = target_omegas[i]
+                current_thetas[i] += target_omegas[i] * rate.sleep_dur.to_sec()
+
 
             # compute control law and publish target velocities
             for i in range(len(self.robot_names)):
@@ -165,9 +182,9 @@ class Formation_controller():
                 self.robot_twist_publishers[i].publish(target_velocity)
 
                 # update current velocities
-                current_vels[i] = u_v
-                current_omegas[i] = v_w
-                current_thetas[i] += v_w * rate.sleep_dur.to_sec()
+                # current_vels[i] = u_v
+                # current_omegas[i] = v_w
+                # current_thetas[i] += v_w * rate.sleep_dur.to_sec()
 
 
             rate.sleep()
