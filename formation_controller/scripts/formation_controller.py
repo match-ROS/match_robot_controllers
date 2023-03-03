@@ -12,7 +12,7 @@ class Formation_controller():
     def __init__(self):
         self.path_array = rospy.get_param("~path_array", [])
         self.relative_positions_x = rospy.get_param("~relative_positions_x", [0, 0, 0])
-        self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 1, -1])
+        self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 0., -1])
         self.robot_names = rospy.get_param("~robot_names", ["mir1", "mir2", "mir3"])
         self.mir_poses = [Pose() for i in range(len(self.robot_names))]
         self.target_pose_broadcaster = broadcaster.TransformBroadcaster()
@@ -21,9 +21,9 @@ class Formation_controller():
         self.KP_vel = 1.0
         self.KP_omega = 1.0
         self.control_rate = rospy.get_param("~control_rate", 100.0)
-        self.velocity_limit_lin = 0.2
-        self.velocity_limit_ang = 0.4
-        self.acceleration_limit_lin = 1.0
+        self.velocity_limit_lin = 0.5
+        self.velocity_limit_ang = 2.0
+        self.acceleration_limit_lin = 2.0
         self.acceleration_limit_ang = 2.0
         self.robot_path_publishers = []
         self.robot_twist_publishers = []
@@ -66,7 +66,7 @@ class Formation_controller():
             target_poses[i].orientation.y = q[1]
             target_poses[i].orientation.z = q[2]    
             target_poses[i].orientation.w = q[3]
-
+            current_thetas[i] = self.path_array[0][2]
 
         rate = rospy.Rate(self.control_rate)
         # main loop
@@ -83,27 +83,29 @@ class Formation_controller():
             vel_scaling_factor = 1.0
             for i in range(len(self.robot_names)):
                 if abs(target_vels[i]) > self.velocity_limit_lin:
-                    if (abs(target_vels[i]) / self.velocity_limit_lin) < vel_scaling_factor:
-                        vel_scaling_factor = abs(target_vels[i]) / self.velocity_limit_lin
-            rospy.loginfo("vel_scaling_factor: " + str(vel_scaling_factor))
+                    if (self.velocity_limit_lin / abs(target_vels[i]) ) < vel_scaling_factor:
+                        vel_scaling_factor =  self.velocity_limit_lin / abs(target_vels[i])
 
             # apply velocity scaling factor
             for i in range(len(self.robot_names)):
                 target_vels[i] = target_vels[i] * vel_scaling_factor
 
             # limit target acceleration
+            vel_scaling_factor = 1.0
             for i in range(len(self.robot_names)):
-                if abs(target_vels[i] - current_vels[i]) > self.acceleration_limit_lin:
-                    if (self.acceleration_limit_lin / abs(target_vels[i] - current_vels[i])) < vel_scaling_factor:
-                        vel_scaling_factor = self.acceleration_limit_lin / abs(target_vels[i] - current_vels[i])
-            
+                acc_target = abs(target_vels[i] - current_vels[i]) 
+                if acc_target > self.acceleration_limit_lin:
+                    if (self.acceleration_limit_lin/acc_target) < vel_scaling_factor:
+                        vel_scaling_factor = self.acceleration_limit_lin / acc_target
+
             # apply velocity scaling factor
             for i in range(len(self.robot_names)):
                 target_vels[i] = target_vels[i] * vel_scaling_factor
+            vel_scaling_factor = 1.0
 
             # check if next point is reached
             for i in range(len(self.robot_names)):
-                if distances[i] < target_vels[i]*vel_scaling_factor:
+                if distances[i] < target_vels[i]:
                     path_index += 1
                     print("Next point")
                     break
@@ -113,13 +115,13 @@ class Formation_controller():
                 # compute t based on the distance to the next point
                 # target_points[i][0] = self.robot_paths_x[i][path_index+2]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
                 # target_points[i][1] = self.robot_paths_y[i][path_index+2]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
-                target_points[i][0] = self.robot_paths_x[i][path_index+1]
-                target_points[i][1] = self.robot_paths_y[i][path_index+1]
+                target_points[i][0] = self.robot_paths_x[i][path_index]
+                target_points[i][1] = self.robot_paths_y[i][path_index]
 
 
             # compute angle to target point
             for i in range(len(self.robot_names)):
-                target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index], target_points[i][0] - self.robot_paths_x[i][path_index])
+                target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index-1], target_points[i][0] - self.robot_paths_x[i][path_index-1])
 
             # compute angle error
             for i in range(len(self.robot_names)):
@@ -129,15 +131,24 @@ class Formation_controller():
 
             # limit angular velocity
             for i in range(len(self.robot_names)):
-                if abs(target_omegas[i]) > self.velocity_limit_ang:
-                    if (self.velocity_limit_ang / abs(target_omegas[i])) < vel_scaling_factor:
-                        vel_scaling_factor = self.velocity_limit_ang / abs(target_omegas[i])
+                vel_target = abs(target_omegas[i]) / rate.sleep_dur.to_sec()
+                if vel_target  > self.velocity_limit_ang:
+                    if (self.velocity_limit_ang / vel_target) < vel_scaling_factor:
+                        vel_scaling_factor = self.velocity_limit_ang / vel_target
+            #print("vel_scaling_factor: " + str(vel_scaling_factor))
+
+            # apply velocity scaling factor
+            for i in range(len(self.robot_names)):
+                target_omegas[i] *= vel_scaling_factor
+            vel_scaling_factor = 1.0
 
             # limit angular acceleration
             for i in range(len(self.robot_names)):
-                if abs(target_omegas[i] - self.current_omega) > self.acceleration_limit_ang:
-                    if (self.acceleration_limit_ang / abs(target_omegas[i] - self.current_omega)) < vel_scaling_factor:
-                        vel_scaling_factor = self.acceleration_limit_ang / abs(target_omegas[i] - self.current_omega)
+                acc_target = abs(target_omegas[i] - self.current_omega) / rate.sleep_dur.to_sec()
+                if acc_target > self.acceleration_limit_ang:
+                    if (self.acceleration_limit_ang / acc_target) < vel_scaling_factor:
+                        vel_scaling_factor = self.acceleration_limit_ang / acc_target
+            #print("vel_scaling_factor: " + str(vel_scaling_factor))
 
             # apply velocity scaling factor
             for i in range(len(self.robot_names)):
