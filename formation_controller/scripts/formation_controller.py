@@ -12,7 +12,7 @@ class Formation_controller():
     def __init__(self):
         self.path_array = rospy.get_param("~path_array", [])
         self.relative_positions_x = rospy.get_param("~relative_positions_x", [0, 0, 0])
-        self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 0., -1])
+        self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 1.0 , -1.0])
         self.robot_names = rospy.get_param("~robot_names", ["mir1", "mir2", "mir3"])
         self.mir_poses = [Pose() for i in range(len(self.robot_names))]
         self.target_pose_broadcaster = broadcaster.TransformBroadcaster()
@@ -58,8 +58,6 @@ class Formation_controller():
         for i in range(len(self.robot_names)):
             target_poses[i].position.x = self.robot_paths_x[i][0]
             target_poses[i].position.y = self.robot_paths_y[i][0]
-            #target_poses[i].position.x = self.path_array[0][0] + self.relative_positions_x[i] * math.cos(self.path_array[0][2]) - self.relative_positions_y[i] * math.sin(self.path_array[0][2])
-            #target_poses[i].position.y = self.path_array[0][1] + self.relative_positions_x[i] * math.sin(self.path_array[0][2]) + self.relative_positions_y[i] * math.cos(self.path_array[0][2])
             target_poses[i].position.z = 0.0
             q = transformations.quaternion_from_euler(0, 0, self.path_array[0][2])
             target_poses[i].orientation.x = q[0]
@@ -112,15 +110,10 @@ class Formation_controller():
 
             # compute next target point
             for i in range(len(self.robot_names)):
-                # compute t based on the distance to the next point
-                #t = distances[i] / target_vels[i]
                 # target_points[i][0] = self.robot_paths_x[i][path_index+2]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
                 # target_points[i][1] = self.robot_paths_y[i][path_index+2]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
                 target_points[i][0] = self.robot_paths_x[i][path_index]
                 target_points[i][1] = self.robot_paths_y[i][path_index]
-                #print(t)
-                #target_points[i][0] = self.robot_paths_x[i][path_index-1] + t * (self.robot_paths_x[i][path_index] - self.robot_paths_x[i][path_index-1])
-                #target_points[i][1] = self.robot_paths_y[i][path_index-1] + t * (self.robot_paths_y[i][path_index] - self.robot_paths_y[i][path_index-1])
 
             # compute angle to target point
             for i in range(len(self.robot_names)):
@@ -128,7 +121,6 @@ class Formation_controller():
 
             # compute angle error
             for i in range(len(self.robot_names)):
-                #current_theta = transformations.euler_from_quaternion([self.mir_poses[i].orientation.x, self.mir_poses[i].orientation.y, self.mir_poses[i].orientation.z, self.mir_poses[i].orientation.w])[2]
                 angle_error = target_angles[i] - current_thetas[i]
                 target_omegas[i] = self.KP_omega * angle_error
 
@@ -187,18 +179,12 @@ class Formation_controller():
                 target_velocity = Twist()
                 target_velocity.linear.x = target_vels[i]
                 target_velocity.angular.z = target_omegas[i]
-                u_v, v_w = self.cartesian_controller(self.mir_poses[i],target_poses[i],target_velocity)
+                u_v, v_w = self.cartesian_controller(self.mir_poses[i],target_poses[i],target_velocity,i)
 
                 # publish target velocities
                 target_velocity.linear.x = u_v
                 target_velocity.angular.z = v_w
                 self.robot_twist_publishers[i].publish(target_velocity)
-
-                # update current velocities
-                # current_vels[i] = u_v
-                # current_omegas[i] = v_w
-                # current_thetas[i] += v_w * rate.sleep_dur.to_sec()
-
 
             rate.sleep()
 
@@ -207,22 +193,34 @@ class Formation_controller():
             
             
 
-    def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist()):
-        Kv = 0.2
-        Ky = 0.2
+    def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist(),i = 0):
+        Ky = 0.1
+        Kphi = 0.2
         Kx = 0.2
         phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
+        R = transformations.quaternion_matrix([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
 
-        e_x = (target_pose.position.x-actual_pose.position.x)
-        e_y = (target_pose.position.x - actual_pose.position.y)
-        #rospy.loginfo_throttle(1,[id,e_x,e_y])
-        e_local_x = math.cos(phi_act[2]) * e_x + math.sin(phi_act[2]) * e_y
-        e_local_y = math.cos(phi_act[2]) * e_y - math.sin(phi_act[2]) * e_x
+        e_x = (target_pose.position.x- actual_pose.position.x)
+        e_y = (target_pose.position.y - actual_pose.position.y)
+        e_local_x = R[0,0]*e_x + R[1,0]*e_y
+        e_local_y = R[0,1]*e_x + R[1,1]*e_y
 
-        #print(target_velocity)
+        # broadcast actual pose
+        self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
+                                            (actual_pose.orientation.x, actual_pose.orientation.y, actual_pose.orientation.z, actual_pose.orientation.w),
+                                            rospy.Time.now(),
+                                            "actual_pose_" + str(i),
+                                            "map")
 
-        u_w = target_velocity.angular.z + target_velocity.linear.x * Kv * e_local_y + Ky * math.sin(phi_target[2]-phi_act[2])
+        # broadcast target pose
+        self.target_pose_broadcaster.sendTransform((target_pose.position.x, target_pose.position.y, 0.0),
+                                            (target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w),
+                                            rospy.Time.now(),
+                                            "target_pose_controll" + str(i),
+                                            "map")
+
+        u_w = target_velocity.angular.z + target_velocity.linear.x * ( Ky * e_local_y + Kphi * math.sin(phi_target[2]-phi_act[2]))
         u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + Kx*e_local_x
 
         return u_v, u_w
