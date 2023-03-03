@@ -113,11 +113,14 @@ class Formation_controller():
             # compute next target point
             for i in range(len(self.robot_names)):
                 # compute t based on the distance to the next point
+                #t = distances[i] / target_vels[i]
                 # target_points[i][0] = self.robot_paths_x[i][path_index+2]*0.5 + self.robot_paths_x[i][path_index+1]*0.5
                 # target_points[i][1] = self.robot_paths_y[i][path_index+2]*0.5 + self.robot_paths_y[i][path_index+1]*0.5
                 target_points[i][0] = self.robot_paths_x[i][path_index]
                 target_points[i][1] = self.robot_paths_y[i][path_index]
-
+                #print(t)
+                #target_points[i][0] = self.robot_paths_x[i][path_index-1] + t * (self.robot_paths_x[i][path_index] - self.robot_paths_x[i][path_index-1])
+                #target_points[i][1] = self.robot_paths_y[i][path_index-1] + t * (self.robot_paths_y[i][path_index] - self.robot_paths_y[i][path_index-1])
 
             # compute angle to target point
             for i in range(len(self.robot_names)):
@@ -131,24 +134,23 @@ class Formation_controller():
 
             # limit angular velocity
             for i in range(len(self.robot_names)):
-                vel_target = abs(target_omegas[i]) / rate.sleep_dur.to_sec()
+                vel_target = abs(target_omegas[i]) #/ rate.sleep_dur.to_sec()
                 if vel_target  > self.velocity_limit_ang:
                     if (self.velocity_limit_ang / vel_target) < vel_scaling_factor:
                         vel_scaling_factor = self.velocity_limit_ang / vel_target
-            #print("vel_scaling_factor: " + str(vel_scaling_factor))
 
             # apply velocity scaling factor
             for i in range(len(self.robot_names)):
+                target_vels[i] *= vel_scaling_factor
                 target_omegas[i] *= vel_scaling_factor
             vel_scaling_factor = 1.0
 
             # limit angular acceleration
             for i in range(len(self.robot_names)):
-                acc_target = abs(target_omegas[i] - self.current_omega) / rate.sleep_dur.to_sec()
+                acc_target = abs(target_omegas[i] - self.current_omega) 
                 if acc_target > self.acceleration_limit_ang:
                     if (self.acceleration_limit_ang / acc_target) < vel_scaling_factor:
                         vel_scaling_factor = self.acceleration_limit_ang / acc_target
-            #print("vel_scaling_factor: " + str(vel_scaling_factor))
 
             # apply velocity scaling factor
             for i in range(len(self.robot_names)):
@@ -157,8 +159,8 @@ class Formation_controller():
 
             # compute target pose for each robot
             for i in range(len(self.robot_names)):
-                target_poses[i].position.x += target_vels[i] * math.cos(current_thetas[i]+target_omegas[i]) * rate.sleep_dur.to_sec()
-                target_poses[i].position.y += target_vels[i] * math.sin(current_thetas[i]+target_omegas[i]) * rate.sleep_dur.to_sec()
+                target_poses[i].position.x += target_vels[i] * math.cos(current_thetas[i]) * rate.sleep_dur.to_sec()
+                target_poses[i].position.y += target_vels[i] * math.sin(current_thetas[i]) * rate.sleep_dur.to_sec()
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angles[i])
                 target_poses[i].orientation.x = q[0]
                 target_poses[i].orientation.y = q[1]
