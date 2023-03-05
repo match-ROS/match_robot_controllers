@@ -115,6 +115,10 @@ class Formation_controller():
                 target_points[i][0] = self.robot_paths_x[i][path_index]
                 target_points[i][1] = self.robot_paths_y[i][path_index]
 
+            # broadcast target point
+            for i in range(len(self.robot_names)):
+                self.target_pose_broadcaster.sendTransform((target_points[i][0], target_points[i][1], 0.0), (0.0, 0.0, 0.0, 1.0), rospy.Time.now(), self.robot_names[i] + '/target_point', 'map')
+
             # compute angle to target point
             for i in range(len(self.robot_names)):
                 target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index-1], target_points[i][0] - self.robot_paths_x[i][path_index-1])
@@ -122,6 +126,10 @@ class Formation_controller():
             # compute angle error
             for i in range(len(self.robot_names)):
                 angle_error = target_angles[i] - current_thetas[i]
+                if angle_error > math.pi:
+                    angle_error -= 2*math.pi
+                elif angle_error < -math.pi:
+                    angle_error += 2*math.pi
                 target_omegas[i] = self.KP_omega * angle_error
 
             # limit angular velocity
