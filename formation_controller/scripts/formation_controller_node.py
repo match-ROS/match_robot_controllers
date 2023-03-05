@@ -5,9 +5,10 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import Pose, PoseStamped, Twist
 from tf import transformations, broadcaster
 import math
+from helper_nodes.metadata_publisher import Metadata_publisher
 
 
-class Formation_controller():
+class Formation_controller_node():
 
     def __init__(self):
         self.path_array = rospy.get_param("~path_array", [])
@@ -27,6 +28,7 @@ class Formation_controller():
         self.acceleration_limit_ang = 2.0
         self.robot_path_publishers = []
         self.robot_twist_publishers = []
+        self.metadata_publisher = Metadata_publisher()
         
         for i in range(len(self.robot_names)):
             self.robot_path_publishers.append(rospy.Publisher(self.robot_names[i] + '/robot_path', Path, queue_size=1))
@@ -230,6 +232,9 @@ class Formation_controller():
         u_w = target_velocity.angular.z + target_velocity.linear.x * ( Ky * e_local_y + Kphi * math.sin(phi_target[2]-phi_act[2]))
         u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + Kx*e_local_x
 
+        # publish metadata
+        self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity)
+
         return u_v, u_w
 
 
@@ -282,7 +287,7 @@ if __name__ == "__main__":
     try:
         rospy.init_node('formation_controller')
         rospy.loginfo('formation_controller node started')
-        exe = Formation_controller()
+        exe = Formation_controller_node()
         exe.run()
     except rospy.ROSInterruptException:
         pass
