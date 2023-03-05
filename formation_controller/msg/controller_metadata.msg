@@ -13,3 +13,4 @@ float32 error_y
 float32 error_theta
 float32 target_velocity_x
 float32 target_velocity_y
+int16   robot_id

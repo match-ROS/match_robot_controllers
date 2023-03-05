@@ -36,6 +36,9 @@ class Metadata_publisher():
             target_velocity = kwargs["target_velocity"]
             self.controller_metadata.target_velocity_x = target_velocity.linear.x
             self.controller_metadata.target_velocity_y = target_velocity.linear.y
+        if "robot_id" in kwargs:
+            robot_id = kwargs["robot_id"]
+            self.controller_metadata.robot_id = robot_id
 
 
 

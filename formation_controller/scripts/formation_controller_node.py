@@ -233,7 +233,8 @@ class Formation_controller_node():
         u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + Kx*e_local_x
 
         # publish metadata
-        self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity)
+        self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,
+        error = [e_local_x,e_local_y,phi_target[2]-phi_act[2]], robot_id = i) 
 
         return u_v, u_w
 
