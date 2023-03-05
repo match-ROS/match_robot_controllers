@@ -30,8 +30,10 @@ class Get_path(smach.State):
         rospy.loginfo('formation path received')
         start_pose = path.poses[0].pose
 
-        for i in range(1,active_robots):
-            continue
+        # teleport the robot away from the formation to avoid collision
+        teleport_robots_away(robot_names)
+
+        for i in range(0,active_robots):
             # compute the target pose 
             target_pose = deepcopy(start_pose)
             theta = transformations.euler_from_quaternion([target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w])[2]
@@ -39,17 +41,27 @@ class Get_path(smach.State):
             target_pose.position.y += relative_positions_x[i] * math.sin(theta) + relative_positions_y[i] * math.cos(theta)
             target_pose_ = [target_pose.position.x, target_pose.position.y, theta]
 
-            # launch the move_to_start_pose node                
-            process = launch_ros_node("move_to_start_pose","formation_controller","move_to_start_pose.py", robot_names[i], "", target_pose=target_pose_)
+            # teleport the robot to the start pose
+            process = launch_ros_node("teleport_to_start_pose","formation_controller","teleport_to_start_pose.py", "", "", target_pose=target_pose_, robot_name=robot_names[i])
+
+            # # launch the move_to_start_pose node                
+            # process = launch_ros_node("move_to_start_pose","formation_controller","move_to_start_pose.py", robot_names[i], "", target_pose=target_pose_)
 
             # wait for the node to finish
             while process.is_alive() and not rospy.is_shutdown():
                 rospy.sleep(0.1)
-                pass
             rospy.loginfo(robot_names[i] + " in start pose")
 
         return 'formation_path_received'
 
+def teleport_robots_away(robot_names):
+    for i in range(0,len(robot_names)):
+        storage_pose = [1000 + 2*i, 0, 0]
+        process = launch_ros_node("teleport_to_start_pose","formation_controller","teleport_to_start_pose.py", "", "", target_pose=storage_pose, robot_name=robot_names[i])
+
+        # wait for the node to finish
+        while process.is_alive() and not rospy.is_shutdown():
+            rospy.sleep(0.1)
 
 # define state Compute_trajectory
 class Start_formation_controller(smach.State):
@@ -146,7 +158,7 @@ def main():
         smach.StateMachine.add('Get_path', Get_path(), 
                                transitions={'formation_path_received':'Start_formation_controller'})
         smach.StateMachine.add('Start_formation_controller', Start_formation_controller(), 
-                               transitions={'target_pose_reached':'Move_MiR_to_start_pose','target_pose_not_reached':'Move_MiR_to_start_pose'})
+                               transitions={'target_pose_reached':'Get_path','target_pose_not_reached':'Move_MiR_to_start_pose'})
         smach.StateMachine.add('Move_MiR_to_start_pose', Move_MiR_to_start_pose(), 
                                transitions={'mir_initialized':'Move_UR_to_start_pose'})
         smach.StateMachine.add('Move_UR_to_start_pose', Move_UR_to_start_pose(),
