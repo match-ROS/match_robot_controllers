@@ -105,7 +105,6 @@ class Formation_controller():
             for i in range(len(self.robot_names)):
                 if distances[i] < target_vels[i]:
                     path_index += 1
-                    print("Next point")
                     break
 
             # compute next target point
@@ -202,8 +201,8 @@ class Formation_controller():
             
 
     def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist(),i = 0):
-        Ky = 0.1
-        Kphi = 0.2
+        Ky = 0.3
+        Kphi = 0.1
         Kx = 0.2
         phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
