@@ -8,6 +8,7 @@ import roslaunch
 from tf import transformations
 import math
 from copy import deepcopy
+from std_msgs.msg import String
 
 # define global variables
 path = Path();
@@ -15,6 +16,7 @@ active_robots = rospy.get_param("/active_robots", 3)
 robot_names = rospy.get_param("/robot_names", ["mir1", "mir2", "mir3"])
 relative_positions_x = rospy.get_param("/relative_positions_x", [0, 0, 0])
 relative_positions_y = rospy.get_param("/relative_positions_y", [0, 0.7, -0.7])
+state = ""
 
 # define state Parse_path
 class Get_path(smach.State):
@@ -24,10 +26,12 @@ class Get_path(smach.State):
     def execute(self, userdata):
         formatin_plan_topic = rospy.get_param("/formation_plan_topic","/voronoi_planner/formation_plan")
         rospy.loginfo('Witing for path')
+        state_publisher("idle")
 
         global path
         path = rospy.wait_for_message(formatin_plan_topic, Path)
         rospy.loginfo('formation path received')
+        state_publisher("moving_to_start_pose")
         start_pose = path.poses[0].pose
 
         # teleport the robot away from the formation to avoid collision
@@ -69,6 +73,7 @@ class Start_formation_controller(smach.State):
         smach.State.__init__(self, outcomes=['target_pose_reached', 'target_pose_not_reached'])
 
     def execute(self, userdata):
+        state_publisher("moving_to_target_pose")
 
         path_array = []
         for pose in path.poses:
@@ -171,6 +176,12 @@ def main():
     sis.start()
 
     outcome = sm.execute()
+
+def state_publisher(state):
+    state_pub = rospy.Publisher('/state_machine/state', String, queue_size=10)
+    state_string = String()
+    state_string.data = state
+    state_pub.publish(state_string)
 
 
 def init_ros_param_server():
