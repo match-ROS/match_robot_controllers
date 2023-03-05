@@ -88,6 +88,7 @@ class Start_formation_controller(smach.State):
                 rospy.sleep(0.1)
                 pass
 
+        state_publisher("target_pose_reached")
         return 'target_pose_reached'
         
 
