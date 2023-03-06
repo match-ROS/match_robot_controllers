@@ -22,7 +22,7 @@ class Formation_controller_node():
         self.KP_vel = 1.0
         self.KP_omega = 1.0
         self.control_rate = rospy.get_param("~control_rate", 100.0)
-        self.velocity_limit_lin = 0.5
+        self.velocity_limit_lin = 0.7
         self.velocity_limit_ang = 2.0
         self.acceleration_limit_lin = 2.0
         self.acceleration_limit_ang = 2.0
