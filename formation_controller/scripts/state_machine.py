@@ -14,8 +14,8 @@ from std_msgs.msg import String
 path = Path();
 active_robots = rospy.get_param("~active_robots", 3)
 robot_names = rospy.get_param("~robot_names", ["mir1", "mir2", "mir3"])
-relative_positions_x = rospy.get_param("~relative_positions_x", [0, 1.5, -1.5])
-relative_positions_y = rospy.get_param("~relative_positions_y", [0, 0, 0])
+relative_positions_x = rospy.get_param("~relative_positions_x", [0, 0, 0])
+relative_positions_y = rospy.get_param("~relative_positions_y", [0, 1.0, -1.0])
 state = ""
 
 # define state Parse_path

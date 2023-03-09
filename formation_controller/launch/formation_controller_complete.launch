@@ -1,8 +1,8 @@
 <?xml version="1.0" ?>
 <launch>
     <arg name="robot_names" default='["mir1", "mir2", "mir3"]'/>
-    <arg name="relative_positions_x" default="[0.0, 1.5, -1.5]"/>
-    <arg name="relative_positions_y" default="[0.0, 0, 0]"/>
+    <arg name="relative_positions_x" default="[0.0, 0, 0]"/>
+    <arg name="relative_positions_y" default="[0.0, 1.0, -1.0]"/>
 
     <rosparam file="$(find formation_controller)/config/formation_controller_config.yaml" command="load" subst_value="true"/>
 

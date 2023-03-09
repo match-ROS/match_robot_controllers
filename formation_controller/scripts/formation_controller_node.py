@@ -6,6 +6,7 @@ from geometry_msgs.msg import Pose, PoseStamped, Twist
 from tf import transformations, broadcaster
 import math
 from helper_nodes.metadata_publisher import Metadata_publisher
+from copy import deepcopy
 
 
 class Formation_controller_node():
@@ -26,9 +27,9 @@ class Formation_controller_node():
         self.KP_omega = 1.0
         self.control_rate = rospy.get_param("~control_rate", 100.0)
         self.velocity_limit_lin = rospy.get_param("~velocity_limit_lin", 0.5)
-        self.velocity_limit_ang = rospy.get_param("~velocity_limit_ang", 2.0)
-        self.acceleration_limit_lin = rospy.get_param("~acceleration_limit_lin", 3.0)
-        self.acceleration_limit_ang = rospy.get_param("~acceleration_limit_ang", 3.0)
+        self.velocity_limit_ang = rospy.get_param("~velocity_limit_ang", 1.5)
+        self.acceleration_limit_lin = rospy.get_param("~acceleration_limit_lin", 2.0)
+        self.acceleration_limit_ang = rospy.get_param("~acceleration_limit_ang", 2.5)
         self.robot_path_publishers = []
         self.robot_twist_publishers = []
         self.metadata_publisher = Metadata_publisher()
@@ -45,9 +46,13 @@ class Formation_controller_node():
 
     def run(self):
         self.derive_robot_paths()
+        self.compute_path_lengths()
         # init variables
         path_index = 1
+        path_index_old = 0
         distances = [0.0 for i in range(len(self.robot_names))]
+        current_distances = [0.0 for i in range(len(self.robot_names))]
+        distances_old = [10e10 for i in range(len(self.robot_names))] # set this very high to ensure that the first point is always reached
         target_vels = [0.0 for i in range(len(self.robot_names))]
         target_points = [[0.0, 0.0] for i in range(len(self.robot_names))]
         target_angles = [0.0 for i in range(len(self.robot_names))]
@@ -72,11 +77,14 @@ class Formation_controller_node():
             current_thetas[i] = self.path_array[0][2]
 
         rate = rospy.Rate(self.control_rate)
+        timestamp_old = rospy.Time.now()
         # main loop
         while path_index < len(self.path_array)-2 and not rospy.is_shutdown() :
             # compute distance to next point
             for i in range(len(self.robot_names)):
-                distances[i] = math.sqrt((self.robot_paths_x[i][path_index] - target_poses[i].position.x)**2 + (self.robot_paths_y[i][path_index] - target_poses[i].position.y)**2)
+                #overall_distances[i] += math.sqrt((self.robot_paths_x[i][path_index] - self.robot_paths_x[i][path_index - 1])**2 + (self.robot_paths_y[i][path_index] - self.robot_paths_y[i][path_index - 1])**2)
+                distances[i] = self.path_lengths[i][path_index] - current_distances[i]
+                #distances[i] = math.sqrt((self.robot_paths_x[i][path_index] - target_poses[i].position.x)**2 + (self.robot_paths_y[i][path_index] - target_poses[i].position.y)**2)
 
             # compute target velocity
             for i in range(len(self.robot_names)):
@@ -108,9 +116,15 @@ class Formation_controller_node():
 
             # check if next point is reached
             for i in range(len(self.robot_names)):
-                if distances[i] < target_vels[i]:
+                if distances[i] <= abs(target_vels[i]) * rate.sleep_dur.to_sec(): 
+                    path_index += 1
+                    distances_old = deepcopy(distances)
+                    break
+                if distances[i] > distances_old[i] and path_index != path_index_old: # if distance is increasing, we have passed the target point and need to move on to the next one
                     path_index += 1
                     break
+            distances_old = deepcopy(distances)
+            path_index_old = path_index
 
             # compute next target point
             for i in range(len(self.robot_names)):
@@ -126,6 +140,13 @@ class Formation_controller_node():
             # compute angle to target point
             for i in range(len(self.robot_names)):
                 target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index-1], target_points[i][0] - self.robot_paths_x[i][path_index-1])
+
+            # prevent the angle from jumping from -pi to pi
+            for i in range(len(self.robot_names)):
+                if target_angles[i] > math.pi:
+                    target_angles[i] -= 2*math.pi
+                elif target_angles[i] < -math.pi:
+                    target_angles[i] += 2*math.pi
 
             # compute angle error
             for i in range(len(self.robot_names)):
@@ -161,10 +182,11 @@ class Formation_controller_node():
                 target_vels[i] *= vel_scaling_factor
                 target_omegas[i] *= vel_scaling_factor
 
+            dt = rospy.Time.now() - timestamp_old
             # compute target pose for each robot
             for i in range(len(self.robot_names)):
-                target_poses[i].position.x += target_vels[i] * math.cos(current_thetas[i]) * rate.sleep_dur.to_sec()
-                target_poses[i].position.y += target_vels[i] * math.sin(current_thetas[i]) * rate.sleep_dur.to_sec()
+                target_poses[i].position.x += target_vels[i] * math.cos(current_thetas[i]) * dt.to_sec()
+                target_poses[i].position.y += target_vels[i] * math.sin(current_thetas[i]) * dt.to_sec()
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angles[i])
                 target_poses[i].orientation.x = q[0]
                 target_poses[i].orientation.y = q[1]
@@ -179,12 +201,14 @@ class Formation_controller_node():
                                             "target_pose_" + str(i),
                                             "map")
 
+            dt = rospy.Time.now() - timestamp_old
             # update current velocities
             for i in range(len(self.robot_names)):
                 current_vels[i] = target_vels[i]
                 current_omegas[i] = target_omegas[i]
-                current_thetas[i] += target_omegas[i] * rate.sleep_dur.to_sec()
-
+                current_thetas[i] += target_omegas[i] * dt.to_sec()
+                current_distances[i] += target_vels[i] * dt.to_sec()
+            timestamp_old = rospy.Time.now()
 
             # compute control law and publish target velocities
             for i in range(len(self.robot_names)):
@@ -238,6 +262,13 @@ class Formation_controller_node():
 
         return u_v, u_w
 
+
+    def compute_path_lengths(self):
+        # compute path lengths
+        self.path_lengths = [[0] for _ in range(len(self.robot_names))]
+        for idx in range(0,len(self.robot_names)):
+            for i in range(1,len(self.path_array)):
+                self.path_lengths[idx].append(self.path_lengths[idx][i-1] + math.sqrt((self.robot_paths_x[idx][i]-self.robot_paths_x[idx][i-1])**2 + (self.robot_paths_y[idx][i]-self.robot_paths_y[idx][i-1])**2))
 
 
     def derive_robot_paths(self):
