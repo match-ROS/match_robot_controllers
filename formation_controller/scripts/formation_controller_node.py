@@ -12,20 +12,23 @@ class Formation_controller_node():
 
     def __init__(self):
         self.path_array = rospy.get_param("~path_array", [])
-        self.relative_positions_x = rospy.get_param("~relative_positions_x", [0, 0, 0])
-        self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 1.0 , -1.0])
+        self.relative_positions_x = rospy.get_param("~relative_positions_x", [0, 1.0, -1.0])
+        self.relative_positions_y = rospy.get_param("~relative_positions_y", [0, 0.0 , 0.0])
         self.robot_names = rospy.get_param("~robot_names", ["mir1", "mir2", "mir3"])
         self.mir_poses = [Pose() for i in range(len(self.robot_names))]
         self.target_pose_broadcaster = broadcaster.TransformBroadcaster()
         self.current_vel = 0.0
         self.current_omega = 0.0
+        self.Kx = rospy.get_param("~Kx", 0.2)
+        self.Ky = rospy.get_param("~Ky", 0.4)
+        self.Kphi = rospy.get_param("~Kphi", 0.0)
         self.KP_vel = 1.0
         self.KP_omega = 1.0
         self.control_rate = rospy.get_param("~control_rate", 100.0)
-        self.velocity_limit_lin = 0.7
-        self.velocity_limit_ang = 2.0
-        self.acceleration_limit_lin = 2.0
-        self.acceleration_limit_ang = 2.0
+        self.velocity_limit_lin = rospy.get_param("~velocity_limit_lin", 0.5)
+        self.velocity_limit_ang = rospy.get_param("~velocity_limit_ang", 2.0)
+        self.acceleration_limit_lin = rospy.get_param("~acceleration_limit_lin", 3.0)
+        self.acceleration_limit_ang = rospy.get_param("~acceleration_limit_ang", 3.0)
         self.robot_path_publishers = []
         self.robot_twist_publishers = []
         self.metadata_publisher = Metadata_publisher()
@@ -203,9 +206,6 @@ class Formation_controller_node():
             
 
     def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist(),i = 0):
-        Ky = 0.3
-        Kphi = 0.1
-        Kx = 0.2
         phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
         R = transformations.quaternion_matrix([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
@@ -229,8 +229,8 @@ class Formation_controller_node():
                                             "target_pose_controll" + str(i),
                                             "map")
 
-        u_w = target_velocity.angular.z + target_velocity.linear.x * ( Ky * e_local_y + Kphi * math.sin(phi_target[2]-phi_act[2]))
-        u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + Kx*e_local_x
+        u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Ky * e_local_y + self.Kphi * math.sin(phi_target[2]-phi_act[2]))
+        u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + self.Kx*e_local_x
 
         # publish metadata
         self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,

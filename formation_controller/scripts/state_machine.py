@@ -12,10 +12,10 @@ from std_msgs.msg import String
 
 # define global variables
 path = Path();
-active_robots = rospy.get_param("/active_robots", 3)
-robot_names = rospy.get_param("/robot_names", ["mir1", "mir2", "mir3"])
-relative_positions_x = rospy.get_param("/relative_positions_x", [0, 0, 0])
-relative_positions_y = rospy.get_param("/relative_positions_y", [0, 0.7, -0.7])
+active_robots = rospy.get_param("~active_robots", 3)
+robot_names = rospy.get_param("~robot_names", ["mir1", "mir2", "mir3"])
+relative_positions_x = rospy.get_param("~relative_positions_x", [0, 1.5, -1.5])
+relative_positions_y = rospy.get_param("~relative_positions_y", [0, 0, 0])
 state = ""
 
 # define state Parse_path
@@ -80,6 +80,7 @@ class Start_formation_controller(smach.State):
             theta = transformations.euler_from_quaternion([pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w])[2]
             path_array.append([pose.pose.position.x, pose.pose.position.y , theta])
 
+        # launch the formation_controller node
         process = launch_ros_node("formation_controller_node","formation_controller","formation_controller_node.py", 
                                   "", "", path_array=path_array, active_robots=active_robots,
                                     robot_names=robot_names, relative_positions_x=relative_positions_x, relative_positions_y=relative_positions_y)
