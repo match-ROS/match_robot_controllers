@@ -139,7 +139,8 @@ class Formation_controller_node():
 
             # compute angle to target point
             for i in range(len(self.robot_names)):
-                target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index-1], target_points[i][0] - self.robot_paths_x[i][path_index-1])
+                target_angles[i] = math.atan2(target_points[i][1] - target_poses[i].position.y, target_points[i][0] - target_poses[i].position.x)
+                #target_angles[i] = math.atan2(target_points[i][1] - self.robot_paths_y[i][path_index-1], target_points[i][0] - self.robot_paths_x[i][path_index-1])
 
             # prevent the angle from jumping from -pi to pi
             for i in range(len(self.robot_names)):
@@ -187,7 +188,8 @@ class Formation_controller_node():
             for i in range(len(self.robot_names)):
                 target_poses[i].position.x += target_vels[i] * math.cos(current_thetas[i]) * dt.to_sec()
                 target_poses[i].position.y += target_vels[i] * math.sin(current_thetas[i]) * dt.to_sec()
-                q = transformations.quaternion_from_euler(0.0, 0.0, target_angles[i])
+                #q = transformations.quaternion_from_euler(0.0, 0.0, target_angles[i])
+                q = transformations.quaternion_from_euler(0.0, 0.0, current_thetas[i] + target_omegas[i] * dt.to_sec())
                 target_poses[i].orientation.x = q[0]
                 target_poses[i].orientation.y = q[1]
                 target_poses[i].orientation.z = q[2]

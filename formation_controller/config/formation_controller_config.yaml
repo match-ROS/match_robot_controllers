@@ -4,6 +4,6 @@ formation_controller_node:
   Kphi : 0.0
   control_rate : 100.0
   velocity_limit_lin : 0.2
-  velocity_limit_ang : 2.0
-  acceleration_limit_lin : 3.0
-  acceleration_limit_ang : 3.0
+  velocity_limit_ang : 100 # 1.5
+  acceleration_limit_lin : 100 # 2.0
+  acceleration_limit_ang : 100 #2.5
