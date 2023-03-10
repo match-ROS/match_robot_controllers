@@ -1,7 +1,7 @@
 formation_controller_node:
-  Kx : 0.2
-  Ky : 0.4
-  Kphi : 0.0
+  Kx : 3.0
+  Ky : 4.0
+  Kphi : 1.0
   control_rate : 100.0
   velocity_limit_lin : 0.2
   velocity_limit_ang : 100 # 1.5

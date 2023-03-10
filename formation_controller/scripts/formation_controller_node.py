@@ -22,7 +22,7 @@ class Formation_controller_node():
         self.current_omega = 0.0
         self.Kx = rospy.get_param("~Kx", 0.2)
         self.Ky = rospy.get_param("~Ky", 0.4)
-        self.Kphi = rospy.get_param("~Kphi", 0.0)
+        self.Kphi = rospy.get_param("~Kphi", 0.1)
         self.KP_vel = 1.0
         self.KP_omega = 1.0
         self.control_rate = rospy.get_param("~control_rate", 100.0)
