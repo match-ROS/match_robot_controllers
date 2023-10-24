@@ -5,7 +5,7 @@
 import rospy
 from geometry_msgs.msg import Pose, Twist, PoseStamped
 from nav_msgs.msg import Odometry
-from tf import transformations
+from tf import transformations, broadcaster
 import math
 
 class DecentralizedLeaderFollowerController:
@@ -15,6 +15,7 @@ class DecentralizedLeaderFollowerController:
         rospy.Subscriber(self.leader_pose_topic, PoseStamped, self.target_pose_callback)
         rospy.Subscriber(self.actual_pose_topic, PoseStamped, self.actual_pose_callback)
         rospy.Subscriber(self.leader_velocity_topic, Twist, self.target_velocity_callback)
+        self.target_pose_broadcaster = broadcaster.TransformBroadcaster()
 
 
     def config(self):
@@ -22,6 +23,9 @@ class DecentralizedLeaderFollowerController:
         self.actual_pose_topic = rospy.get_param("~actual_pose_topic", "/actual_pose")
         self.leader_velocity_topic = rospy.get_param("~leader_velocity_topic", "/target_velocity")
         self.control_rate = rospy.get_param("~control_rate", 100)
+        self.Kp_x = rospy.get_param("~Kp_x", 1.0)
+        self.Kp_y = rospy.get_param("~Kp_y", 1.0)
+        self.Kp_phi = rospy.get_param("~Kp_phi", 1.0)
         pass
 
     def run(self):
@@ -71,12 +75,12 @@ class DecentralizedLeaderFollowerController:
                                                 "target_pose_controll" + str(i),
                                                 "map")
 
-            u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Ky * e_local_y + self.Kphi * math.sin(phi_target[2]-phi_act[2]))
-            u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + self.Kx*e_local_x
+            u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(phi_target[2]-phi_act[2]))
+            u_v = target_velocity.linear.x * math.cos(phi_target[2]-phi_act[2]) + self.Kp_x*e_local_x
 
             # publish metadata
-            self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,
-            error = [e_local_x,e_local_y,phi_target[2]-phi_act[2]], robot_id = i) 
+            # self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,
+            # error = [e_local_x,e_local_y,phi_target[2]-phi_act[2]], robot_id = i) 
 
             return u_v, u_w
         
