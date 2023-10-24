@@ -41,15 +41,15 @@ class virtual_leader:
             self.d_pose_R[2] = self.d_pose[2]
             
             # calculate the new pose of the leader
-            self.leader_pose.pose.pose.position.x = self.leader_pose.pose.pose.position.x + self.d_pose_R[0]
-            self.leader_pose.pose.pose.position.y = self.leader_pose.pose.pose.position.y + self.d_pose_R[1]
+            self.leader_pose.pose.position.x = self.leader_pose.pose.position.x + self.d_pose_R[0]
+            self.leader_pose.pose.position.y = self.leader_pose.pose.position.y + self.d_pose_R[1]
             self.leader_orientation = self.leader_orientation + self.d_pose_R[2]
             
             q = transformations.quaternion_from_euler(0,0,self.leader_orientation)
-            self.leader_pose.pose.pose.orientation.x = q[0]
-            self.leader_pose.pose.pose.orientation.y = q[1]
-            self.leader_pose.pose.pose.orientation.z = q[2]
-            self.leader_pose.pose.pose.orientation.w = q[3]
+            self.leader_pose.pose.orientation.x = q[0]
+            self.leader_pose.pose.orientation.y = q[1]
+            self.leader_pose.pose.orientation.z = q[2]
+            self.leader_pose.pose.orientation.w = q[3]
             
             self.leader_pose.header.stamp = rospy.Time.now()
             self.leader_pose.header.frame_id = 'map'
@@ -61,8 +61,8 @@ class virtual_leader:
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "map"
             t.child_frame_id = "virtual_leader/odom"
-            t.transform.translation = self.leader_pose.pose.pose.position
-            t.transform.rotation = self.leader_pose.pose.pose.orientation
+            t.transform.translation = self.leader_pose.pose.position
+            t.transform.rotation = self.leader_pose.pose.orientation
             br.sendTransform(t)
 
             self.pub_vel.publish(_master_vel)

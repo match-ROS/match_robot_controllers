@@ -12,7 +12,7 @@ class Virtual_leader_helper():
         self.load_param()
         self.virtual_leader.e_stop = False
         self.virtual_leader.time_old = rospy.get_time()
-        self.virtual_leader.leader_pose = PoseWithCovarianceStamped()
+        self.virtual_leader.leader_pose = PoseStamped()
         self.virtual_leader.master_vel = Twist()
         self.virtual_leader.d_pose = [0,0,0]
         self.virtual_leader.d_pose_R = [0,0,0]
@@ -22,7 +22,7 @@ class Virtual_leader_helper():
         rospy.Subscriber(self.set_pose_topic, PoseStamped, self.set_pose_cb)
         rospy.Subscriber(self.cmd_vel_topic, Twist, self.cmd_vel_cb)
 
-        self.virtual_leader.pub        = rospy.Publisher(self.leader_pose_topic, PoseWithCovarianceStamped, queue_size=10)
+        self.virtual_leader.pub        = rospy.Publisher(self.leader_pose_topic, PoseStamped, queue_size=10)
         self.virtual_leader.pub_vel    = rospy.Publisher(self.leader_vel_topic, Twist, queue_size=10)
 
     def load_param(self):
@@ -35,7 +35,7 @@ class Virtual_leader_helper():
         self.virtual_leader.cmd_vel_timeout = rospy.get_param('~cmd_vel_timeout','/cmd_vel_timeout')
 
     def set_pose_cb(self,data = PoseStamped()):
-        self.virtual_leader.leader_pose.pose.pose = data.pose
+        self.virtual_leader.leader_pose.pose = data.pose
         orientation = transformations.euler_from_quaternion([data.pose.orientation.x,data.pose.orientation.y,data.pose.orientation.z,data.pose.orientation.w])
         self.virtual_leader.leader_orientation = orientation[2]
         

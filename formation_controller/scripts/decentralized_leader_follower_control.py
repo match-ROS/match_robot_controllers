@@ -12,19 +12,25 @@ class DecentralizedLeaderFollowerController:
     
     def __init__(self) -> None:
         self.config()
-        rospy.Subscriber(self.target_pose_topic, PoseStamped, self.target_pose_callback)
+        rospy.Subscriber(self.leader_pose_topic, PoseStamped, self.target_pose_callback)
         rospy.Subscriber(self.actual_pose_topic, PoseStamped, self.actual_pose_callback)
-        rospy.Subscriber(self.target_velocity_topic, Twist, self.target_velocity_callback)
+        rospy.Subscriber(self.leader_velocity_topic, Twist, self.target_velocity_callback)
 
 
     def config(self):
-        self.target_pose_topic = rospy.get_param("~target_pose_topic", "/target_pose")
+        self.leader_pose_topic = rospy.get_param("~leader_pose_topic", "/target_pose")
         self.actual_pose_topic = rospy.get_param("~actual_pose_topic", "/actual_pose")
-        self.target_velocity_topic = rospy.get_param("~target_velocity_topic", "/target_velocity")
+        self.leader_velocity_topic = rospy.get_param("~leader_velocity_topic", "/target_velocity")
         self.control_rate = rospy.get_param("~control_rate", 100)
         pass
 
     def run(self):
+        
+        # wait for target pose, actual pose and target velocity
+        rospy.wait_for_message(self.leader_pose_topic, PoseStamped)
+        rospy.wait_for_message(self.actual_pose_topic, PoseStamped)
+        rospy.wait_for_message(self.leader_velocity_topic, Twist)
+        
         rate = rospy.Rate(self.control_rate)
         while not rospy.is_shutdown():
             if self.target_pose is not None and self.actual_pose is not None and self.target_velocity is not None:
@@ -81,7 +87,7 @@ class DecentralizedLeaderFollowerController:
         self.actual_pose = msg.pose  
     
     def target_velocity_callback(self, msg):
-        self.target_velocity = msg.twist
+        self.target_velocity = msg
         
         
 if __name__ == '__main__':
