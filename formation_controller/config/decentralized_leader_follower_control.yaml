@@ -1,0 +1,4 @@
+decentralized_leader_follower_control:
+  Kp_x : 0.5
+  Kp_y : 0.5
+  Kp_phi : 0.5
