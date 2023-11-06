@@ -4,7 +4,7 @@
     <arg name="leader_velocity_topic" default='/virtual_leader/leader_vel'/>
     <arg name="actual_pose_topic" default='/mir_pose_stamped_simple'/>
     <arg name="follower_cmd_vel_topic" default='/cmd_vel'/>
-    <arg name="relative_position" default="[0.0, 1.0, 0.0]"/>
+    <arg name="relative_position" default="[0.0, 0.0, 0.0]"/>
 
     <rosparam file="$(find formation_controller)/config/decentralized_leader_follower_control.yaml" command="load" subst_value="true"/>
 
