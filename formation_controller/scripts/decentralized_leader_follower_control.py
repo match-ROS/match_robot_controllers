@@ -18,6 +18,7 @@ class DecentralizedLeaderFollowerController:
         self.target_pose_broadcaster = broadcaster.TransformBroadcaster()
         self.cmd_vel_publisher = rospy.Publisher(self.follower_cmd_vel_topic, Twist, queue_size=10)
         self.cmd_vel_output = Twist()
+        self.largest_error = [0.0,0.0,0.0] # used for logging - remove later
 
 
     def config(self):
@@ -94,15 +95,23 @@ class DecentralizedLeaderFollowerController:
             elif e_phi < -math.pi:
                 e_phi = e_phi + 2*math.pi
             
-            # print("e_x: " + str(e_x))
-            # print("e_y: " + str(e_y))
-            # print("e_phi: " + str(e_phi))
             
             e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
             e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
             
-            # print("e_local_x: " + str(e_local_x))
-            # print("e_local_y: " + str(e_local_y))
+            
+            if e_local_x > self.largest_error[0]:
+                self.largest_error[0] = e_local_x
+                # rospy.loginfo("Largest error x: " + str(self.largest_error[0]))
+                
+            if e_local_y > self.largest_error[1]:
+                self.largest_error[1] = e_local_y
+                rospy.loginfo("Largest error y: " + str(self.largest_error[1]))
+                
+            if e_phi > self.largest_error[2]:
+                self.largest_error[2] = e_phi
+                rospy.loginfo("Largest error phi: " + str(self.largest_error[2]))
+            
 
             # broadcast actual pose
             self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
