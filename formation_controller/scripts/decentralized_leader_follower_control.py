@@ -7,11 +7,13 @@ from geometry_msgs.msg import Pose, Twist, PoseStamped
 from nav_msgs.msg import Odometry
 from tf import transformations, broadcaster
 import math
+from ddynamic_reconfigure_python.ddynamic_reconfigure import DDynamicReconfigure
 
 class DecentralizedLeaderFollowerController:
     
     def __init__(self) -> None:
         self.config()
+        self.setup_ddynamic_reconfigure()
         rospy.Subscriber(self.leader_pose_topic, PoseStamped, self.target_pose_callback)
         rospy.Subscriber(self.actual_pose_topic, PoseStamped, self.actual_pose_callback)
         rospy.Subscriber(self.leader_velocity_topic, Twist, self.target_velocity_callback)
@@ -145,6 +147,31 @@ class DecentralizedLeaderFollowerController:
     def target_velocity_callback(self, msg):
         self.target_velocity = msg
         
+    def setup_ddynamic_reconfigure(self):
+        # Create a D(ynamic)DynamicReconfigure
+        ddynrec = DDynamicReconfigure("decentralized_leader_follower_control")
+
+        # Add variables (name, description, default value, min, max, edit_method)
+        ddynrec.add_variable("Kp_x", "float/double variable", self.Kp_x, 0.0, self.Kp_x * 5)
+        ddynrec.add_variable("Kp_y", "float/double variable", self.Kp_y, 0.0, self.Kp_y * 5)
+        ddynrec.add_variable("Kp_phi", "float/double variable", self.Kp_phi, 0.0, self.Kp_phi * 5)
+        ddynrec.add_variable("lin_vel_max", "float/double variable", self.lin_vel_max, 0.0, self.lin_vel_max * 5)
+        ddynrec.add_variable("ang_vel_max", "float/double variable", self.ang_vel_max, 0.0, self.ang_vel_max * 5)
+        #ddynrec.add_variable("servo_position", "integer variable", self.servo_position, 0, 1200)
+        
+
+        # Start the server
+        ddynrec.start(self.dyn_rec_callback)
+        
+        
+    def dyn_rec_callback(self,config, level):
+        self.Kp_x = config["Kp_x"]
+        self.Kp_y = config["Kp_y"]
+        self.Kp_phi = config["Kp_phi"]
+        self.lin_vel_max = config["lin_vel_max"]
+        self.ang_vel_max = config["ang_vel_max"]
+
+        return config
         
 if __name__ == '__main__':
     try:
