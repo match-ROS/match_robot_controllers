@@ -28,6 +28,7 @@ class DecentralizedLeaderFollowerController:
         self.actual_pose_topic = rospy.get_param("~actual_pose_topic", "/actual_pose")
         self.leader_velocity_topic = rospy.get_param("~leader_velocity_topic", "/target_velocity")
         self.follower_cmd_vel_topic = rospy.get_param("~follower_cmd_vel_topic", "/cmd_vel")
+        self.tf_prefix = rospy.get_param("~tf_prefix", "follower")
         self.control_rate = rospy.get_param("~control_rate", 100)
         self.Kp_x = rospy.get_param("~Kp_x", 1.0)
         self.Kp_y = rospy.get_param("~Kp_y", 1.0)
@@ -126,7 +127,7 @@ class DecentralizedLeaderFollowerController:
             self.target_pose_broadcaster.sendTransform((target_pose.position.x, target_pose.position.y, 0.0),
                                                 (target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w),
                                                 rospy.Time.now(),
-                                                "target_pose_control",
+                                                self.tf_prefix + "target_pose_control",
                                                 "map")
 
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
