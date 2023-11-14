@@ -130,7 +130,7 @@ class DecentralizedLeaderFollowerController:
                                                 self.tf_prefix + "target_pose_control",
                                                 "map")
 
-            u_v = (target_velocity.linear.x + target_velocity.angular.z * math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2)) * math.cos(e_phi) + self.Kp_x*e_local_x
+            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
             u_w = target_velocity.angular.z + u_v * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
             
             # publish metadata
