@@ -103,31 +103,32 @@ class DecentralizedLeaderFollowerController:
             e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
             
             
-            if e_local_x > self.largest_error[0]:
-                self.largest_error[0] = e_local_x
-                # rospy.loginfo("Largest error x: " + str(self.largest_error[0]))
+            # if e_local_x > self.largest_error[0]:
+            #     self.largest_error[0] = e_local_x
+            #     # rospy.loginfo("Largest error x: " + str(self.largest_error[0]))
                 
-            if e_local_y > self.largest_error[1]:
-                self.largest_error[1] = e_local_y
-                rospy.loginfo("Largest error y: " + str(self.largest_error[1]))
+            # if e_local_y > self.largest_error[1]:
+            #     self.largest_error[1] = e_local_y
+            #     rospy.loginfo("Largest error y: " + str(self.largest_error[1]))
                 
-            if e_phi > self.largest_error[2]:
-                self.largest_error[2] = e_phi
-                rospy.loginfo("Largest error phi: " + str(self.largest_error[2]))
+            # if e_phi > self.largest_error[2]:
+            #     self.largest_error[2] = e_phi
+            #     rospy.loginfo("Largest error phi: " + str(self.largest_error[2]))
             
+            rospy.loginfo_throttle(1, "e_local_x: " + str(e_local_x) + " e_local_y: " + str(e_local_y) + " e_phi: " + str(e_phi))
 
             # broadcast actual pose
             self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
                                                 (actual_pose.orientation.x, actual_pose.orientation.y, actual_pose.orientation.z, actual_pose.orientation.w),
                                                 rospy.Time.now(),
-                                                "actual_pose",
+                                                self.tf_prefix + "/actual_pose",
                                                 "map")
 
             # broadcast target pose
             self.target_pose_broadcaster.sendTransform((target_pose.position.x, target_pose.position.y, 0.0),
                                                 (target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w),
                                                 rospy.Time.now(),
-                                                self.tf_prefix + "target_pose_control",
+                                                self.tf_prefix + "/target_pose_control",
                                                 "map")
 
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
