@@ -9,6 +9,7 @@ from tf import transformations, broadcaster
 import math
 from ddynamic_reconfigure_python.ddynamic_reconfigure import DDynamicReconfigure
 from copy import deepcopy
+import numpy as np
 
 class DecentralizedLeaderFollowerController:
     
@@ -82,9 +83,9 @@ class DecentralizedLeaderFollowerController:
         
                 
         # compute the target velocity in the world frame based on leader velocity and relative position
-        target_velocity = self.target_velocity
-        r = math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2)
-        target_velocity.linear.x = self.target_velocity.linear.x + 2 * math.pi * r*self.target_velocity.angular.z  # todo: check if this is correct
+        target_velocity = deepcopy(self.target_velocity)
+        r = math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2) * np.sign(self.relative_position[1]) * -1
+        target_velocity.linear.x = self.target_velocity.linear.x + r*self.target_velocity.angular.z  # todo: check if this is correct
         
         #print("target_velocity" + str(target_velocity))
         
@@ -141,7 +142,7 @@ class DecentralizedLeaderFollowerController:
                                                 "map")
 
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
-            u_w = target_velocity.angular.z + abs(u_v) * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+            u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
             
             # publish metadata
             # self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,

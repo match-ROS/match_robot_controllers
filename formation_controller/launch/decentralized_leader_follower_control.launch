@@ -8,10 +8,9 @@
     <arg name="relative_position" default="[0.0, 1.0, 0.0]"/>
     
 
-    
+    <rosparam file="$(find formation_controller)/config/decentralized_leader_follower_control.yaml" command="load" subst_value="true"/>
 
 	<node name="decentralized_leader_follower_control" pkg="formation_controller" type="decentralized_leader_follower_control.py" output="screen">
-        <rosparam file="$(find formation_controller)/config/decentralized_leader_follower_control.yaml" command="load" subst_value="true"/>
 		<rosparam param="relative_position" subst_value="True">$(arg relative_position) </rosparam>
 		<param name="leader_pose_topic" value="$(arg leader_pose_topic)"/>
         <param name="leader_velocity_topic" value="$(arg leader_velocity_topic)"/>
