@@ -78,16 +78,40 @@ class DecentralizedLeaderFollowerController:
         target_pose = deepcopy(self.target_pose)
         phi = transformations.euler_from_quaternion([self.target_pose.orientation.x,self.target_pose.orientation.y,self.target_pose.orientation.z,self.target_pose.orientation.w])[2]
         
+        # position
         target_pose.position.x = self.target_pose.position.x + self.relative_position[0]*math.cos(phi) - self.relative_position[1]*math.sin(phi)
         target_pose.position.y = self.target_pose.position.y + self.relative_position[0]*math.sin(phi) + self.relative_position[1]*math.cos(phi)
         
-                
+        # compute leader velocity in world frame
+        phi = transformations.euler_from_quaternion([self.target_pose.orientation.x,self.target_pose.orientation.y,self.target_pose.orientation.z,self.target_pose.orientation.w])[2] + self.relative_position[2]
+        dx = self.target_velocity.linear.x * math.cos(phi)  + self.relative_position[0]*self.target_velocity.angular.z * math.sin(phi) + self.relative_position[1]*self.target_velocity.angular.z * math.cos(phi)
+        dy = self.target_velocity.linear.x * math.sin(phi)  - self.relative_position[0]*self.target_velocity.angular.z * math.cos(phi) + self.relative_position[1]*self.target_velocity.angular.z * math.sin(phi)
+
+        # compute target angle
+        if self.target_velocity.linear.x == 0.0 and self.target_velocity.angular.z == 0.0:
+            target_pose.orientation = deepcopy(self.target_pose.orientation)
+        else:
+            if self.target_velocity.angular.z == 0.0:
+                target_angle = math.atan2(dy,dx)
+            elif abs(self.target_velocity.linear.x) > 0.0:
+                target_angle = - math.atan2(dy,dx) + math.pi  * np.sign(self.target_velocity.linear.x)
+            else:
+                target_angle = math.atan2(dy,dx) + math.pi
+            
+            q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
+            target_pose.orientation.x = q[0]
+            target_pose.orientation.y = q[1]
+            target_pose.orientation.z = q[2]
+            target_pose.orientation.w = q[3]
+
         # compute the target velocity in the world frame based on leader velocity and relative position
         target_velocity = deepcopy(self.target_velocity)
-        r = math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2) * np.sign(self.relative_position[1]) * -1
+        if self.relative_position[1] != 0:
+            r = math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2) * np.sign(self.relative_position[1]) * -1
+        else:
+            r = self.relative_position[0]
+
         target_velocity.linear.x = self.target_velocity.linear.x + r*self.target_velocity.angular.z  # todo: check if this is correct
-        
-        #print("target_velocity" + str(target_velocity))
         
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
         return u_v, u_w        
@@ -96,8 +120,7 @@ class DecentralizedLeaderFollowerController:
     def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist(),i = 0):
             phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
             phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
-            # R = transformations.quaternion_matrix([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
-
+            
             e_x = (target_pose.position.x- actual_pose.position.x)
             e_y = (target_pose.position.y - actual_pose.position.y)
             e_phi = phi_target[2]-phi_act[2]
@@ -108,26 +131,9 @@ class DecentralizedLeaderFollowerController:
             elif e_phi < -math.pi:
                 e_phi = e_phi + 2*math.pi
             
-            
             e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
             e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
             
-            #rospy.loginfo_throttle(1, "e_local_x: " + str(e_local_x) + " e_local_y: " + str(e_local_y) + " e_phi: " + str(e_phi))
-            
-            # if e_local_x > self.largest_error[0]:
-            #     self.largest_error[0] = e_local_x
-            #     # rospy.loginfo("Largest error x: " + str(self.largest_error[0]))
-                
-            # if e_local_y > self.largest_error[1]:
-            #     self.largest_error[1] = e_local_y
-            #     rospy.loginfo("Largest error y: " + str(self.largest_error[1]))
-                
-            # if e_phi > self.largest_error[2]:
-            #     self.largest_error[2] = e_phi
-            #     rospy.loginfo("Largest error phi: " + str(self.largest_error[2]))
-            
-            #rospy.loginfo_throttle(1, "e_local_x: " + str(e_local_x) + " e_local_y: " + str(e_local_y) + " e_phi: " + str(e_phi))
-
             # broadcast actual pose
             self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
                                                 (actual_pose.orientation.x, actual_pose.orientation.y, actual_pose.orientation.z, actual_pose.orientation.w),
@@ -145,8 +151,6 @@ class DecentralizedLeaderFollowerController:
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
             u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
             #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
-
-            print(self.Kp_y * e_local_y)
             
             # publish metadata
             # self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,
