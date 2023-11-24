@@ -112,6 +112,7 @@ class DecentralizedLeaderFollowerController:
             e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
             e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
             
+            #rospy.loginfo_throttle(1, "e_local_x: " + str(e_local_x) + " e_local_y: " + str(e_local_y) + " e_phi: " + str(e_phi))
             
             # if e_local_x > self.largest_error[0]:
             #     self.largest_error[0] = e_local_x
@@ -142,7 +143,10 @@ class DecentralizedLeaderFollowerController:
                                                 "map")
 
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
-            u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+            u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+            #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+
+            print(self.Kp_y * e_local_y)
             
             # publish metadata
             # self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,
@@ -177,11 +181,11 @@ class DecentralizedLeaderFollowerController:
         
         
     def dyn_rec_callback(self,config, level):
-        self.Kp_x = config["Kp_x"]
-        self.Kp_y = config["Kp_y"]
-        self.Kp_phi = config["Kp_phi"]
-        self.lin_vel_max = config["lin_vel_max"]
-        self.ang_vel_max = config["ang_vel_max"]
+        # self.Kp_x = config["Kp_x"]
+        # self.Kp_y = config["Kp_y"]
+        # self.Kp_phi = config["Kp_phi"]
+        # self.lin_vel_max = config["lin_vel_max"]
+        # self.ang_vel_max = config["ang_vel_max"]
 
         return config
         
