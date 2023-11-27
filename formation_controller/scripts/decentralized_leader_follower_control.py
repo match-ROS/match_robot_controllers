@@ -114,12 +114,8 @@ class DecentralizedLeaderFollowerController:
 
         # compute the target velocity in the world frame based on leader velocity and relative position
         target_velocity = deepcopy(self.target_velocity)
-        if self.relative_position[1] != 0:
-            r = math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2) * np.sign(self.relative_position[1]) * -1
-        else:
-            r = self.relative_position[0]
-
-        target_velocity.linear.x = self.target_velocity.linear.x + r*self.target_velocity.angular.z  # todo: check if this is correct
+        target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2)
+        target_velocity.angular.z = self.target_velocity.angular.z 
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
         return u_v, u_w        
