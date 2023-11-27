@@ -51,6 +51,9 @@ class DecentralizedLeaderFollowerController:
         rospy.wait_for_message(self.leader_velocity_topic, Twist)
         rospy.loginfo("Got target pose, actual pose and target velocity")
         
+        # initialize old target pose
+        self.target_pose_old = deepcopy(self.target_pose)
+
         rate = rospy.Rate(self.control_rate)
         while not rospy.is_shutdown():
             if self.target_pose is not None and self.actual_pose is not None and self.target_velocity is not None:
@@ -82,27 +85,32 @@ class DecentralizedLeaderFollowerController:
         target_pose.position.x = self.target_pose.position.x + self.relative_position[0]*math.cos(phi) - self.relative_position[1]*math.sin(phi)
         target_pose.position.y = self.target_pose.position.y + self.relative_position[0]*math.sin(phi) + self.relative_position[1]*math.cos(phi)
         
-        # compute leader velocity in world frame
-        phi = transformations.euler_from_quaternion([self.target_pose.orientation.x,self.target_pose.orientation.y,self.target_pose.orientation.z,self.target_pose.orientation.w])[2] + self.relative_position[2]
-        dx = self.target_velocity.linear.x * math.cos(phi)  + self.relative_position[0]*self.target_velocity.angular.z * math.sin(phi) + self.relative_position[1]*self.target_velocity.angular.z * math.cos(phi)
-        dy = self.target_velocity.linear.x * math.sin(phi)  - self.relative_position[0]*self.target_velocity.angular.z * math.cos(phi) + self.relative_position[1]*self.target_velocity.angular.z * math.sin(phi)
+        # compute follower velocity in world frame
+        local_velocity_x = self.target_velocity.linear.x - self.relative_position[1]*self.target_velocity.angular.z
+        local_velocity_y = self.relative_position[0]*self.target_velocity.angular.z
 
+        global_velocity_x = local_velocity_x * math.cos(phi) - local_velocity_y * math.sin(phi)
+        global_velocity_y = local_velocity_x * math.sin(phi) + local_velocity_y * math.cos(phi)
+
+        phi = transformations.euler_from_quaternion([self.target_pose.orientation.x,self.target_pose.orientation.y,self.target_pose.orientation.z,self.target_pose.orientation.w])[2] + self.relative_position[2]
+        
         # compute target angle
-        if self.target_velocity.linear.x == 0.0 and self.target_velocity.angular.z == 0.0:
+        if  self.target_velocity.angular.z == 0.0 and self.target_velocity.linear.x == 0.0:
+            # keep old target orientation if the robot is not moving to avoid jittering
+            target_pose.orientation = self.target_pose_old.orientation
+        elif self.target_velocity.angular.z == 0.0:
             target_pose.orientation = deepcopy(self.target_pose.orientation)
         else:
-            if self.target_velocity.angular.z == 0.0:
-                target_angle = math.atan2(dy,dx)
-            elif abs(self.target_velocity.linear.x) > 0.0:
-                target_angle = - math.atan2(dy,dx) + math.pi  * np.sign(self.target_velocity.linear.x)
-            else:
-                target_angle = math.atan2(dy,dx) + math.pi
-            
+            target_angle = math.atan2(global_velocity_y,global_velocity_x) #* np.sign(self.target_velocity.angular.z) #+ math.pi / 2 
+                
             q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
             target_pose.orientation.x = q[0]
             target_pose.orientation.y = q[1]
             target_pose.orientation.z = q[2]
             target_pose.orientation.w = q[3]
+
+        # update old target pose
+        self.target_pose_old = deepcopy(target_pose)
 
         # compute the target velocity in the world frame based on leader velocity and relative position
         target_velocity = deepcopy(self.target_velocity)
@@ -112,7 +120,7 @@ class DecentralizedLeaderFollowerController:
             r = self.relative_position[0]
 
         target_velocity.linear.x = self.target_velocity.linear.x + r*self.target_velocity.angular.z  # todo: check if this is correct
-        
+
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
         return u_v, u_w        
     
