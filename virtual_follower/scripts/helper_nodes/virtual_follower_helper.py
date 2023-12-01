@@ -32,7 +32,7 @@ class VirtualFollowerHelper():
         rospy.set_param('~test_follower_pose_topic','follower_pose')
         self.follower_vel_topic = "/" + self.virtual_follower.follower_name + "/" + rospy.get_param('~follower_vel_topic','follower_vel') 
         self.follower_pose_topic = "/" + self.virtual_follower.follower_name + "/" + rospy.get_param('~follower_pose_topic','follower_pose')
-        self.cmd_vel_topic = rospy.get_param('~cmd_vel_topic','cmd_vel')
+        self.cmd_vel_topic = "/" + self.virtual_follower.follower_name + "/" + rospy.get_param('~cmd_vel_topic','cmd_vel')
         self.virtual_follower.cmd_vel_timeout = rospy.get_param('~cmd_vel_timeout','/cmd_vel_timeout')
         
     def set_pose_cb(self,data = PoseStamped()):
