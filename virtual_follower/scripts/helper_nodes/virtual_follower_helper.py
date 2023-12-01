@@ -27,14 +27,14 @@ class VirtualFollowerHelper():
 
     def load_param(self):
         self.virtual_follower.rate = rospy.get_param('~/rate', 100.0)
-        self.set_pose_topic = rospy.get_param('~set_pose_topic','set_pose')
+        self.virtual_follower.follower_name = rospy.get_param('~follower_name','follower')
+        self.set_pose_topic = "/" + self.virtual_follower.follower_name + "/" + rospy.get_param('~set_pose_topic','set_pose')  
         rospy.set_param('~test_follower_pose_topic','follower_pose')
-        self.follower_vel_topic = rospy.get_param('~follower_vel_topic','follower_vel')
-        self.follower_pose_topic = rospy.get_param('~follower_pose_topic','follower_pose')
+        self.follower_vel_topic = "/" + self.virtual_follower.follower_name + "/" + rospy.get_param('~follower_vel_topic','follower_vel') 
+        self.follower_pose_topic = "/" + self.virtual_follower.follower_name + "/" + rospy.get_param('~follower_pose_topic','follower_pose')
         self.cmd_vel_topic = rospy.get_param('~cmd_vel_topic','cmd_vel')
         self.virtual_follower.cmd_vel_timeout = rospy.get_param('~cmd_vel_timeout','/cmd_vel_timeout')
-        self.virtual_follower.follower_name = rospy.get_param('~follower_name','follower')
-
+        
     def set_pose_cb(self,data = PoseStamped()):
         self.virtual_follower.follower_pose.pose = data.pose
         orientation = transformations.euler_from_quaternion([data.pose.orientation.x,data.pose.orientation.y,data.pose.orientation.z,data.pose.orientation.w])
