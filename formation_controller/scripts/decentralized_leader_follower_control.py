@@ -96,6 +96,8 @@ class DecentralizedLeaderFollowerController:
         
         if self.relative_position[0] == 0.0:
             target_pose.orientation = deepcopy(self.target_pose.orientation)
+        elif self.relative_position[0] == 0.0:
+            target_pose.orientation = deepcopy(self.target_pose.orientation)
         else:
             # compute target angle
             if  self.target_velocity.angular.z == 0.0 and self.target_velocity.linear.x == 0.0:
@@ -142,9 +144,6 @@ class DecentralizedLeaderFollowerController:
             elif e_phi < -math.pi:
                 e_phi = e_phi + 2*math.pi
             
-            e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
-            e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
-            
             # broadcast actual pose
             self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
                                                 (actual_pose.orientation.x, actual_pose.orientation.y, actual_pose.orientation.z, actual_pose.orientation.w),
@@ -158,10 +157,31 @@ class DecentralizedLeaderFollowerController:
                                                 rospy.Time.now(),
                                                 self.tf_prefix + "/target_pose_control",
                                                 "map")
+                       
+            e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
+            e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
+
+            # if the angular error is larger than 90 degrees, the robot should drive backwards
+            if abs(e_phi) > math.pi/2 and self.relative_position[0] != 0.0:
+                e_phi = e_phi - math.pi
+                # wrap to [-pi,pi] interval
+                if e_phi > math.pi:
+                    e_phi = e_phi - 2*math.pi
+                elif e_phi < -math.pi:
+                    e_phi = e_phi + 2*math.pi
+                backwards = True
+            else:
+                backwards = False
 
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
             u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
             #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+
+            # if the robot should drive backwards, the linear velocity should be negative
+            if backwards == True:
+                u_v = -u_v
+                u_w = -u_w
+            
             
             # publish metadata
             # self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,
