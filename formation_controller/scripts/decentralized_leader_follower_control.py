@@ -94,27 +94,34 @@ class DecentralizedLeaderFollowerController:
 
         phi = transformations.euler_from_quaternion([self.target_pose.orientation.x,self.target_pose.orientation.y,self.target_pose.orientation.z,self.target_pose.orientation.w])[2] + self.relative_position[2]
         
-        # compute target angle
-        if  self.target_velocity.angular.z == 0.0 and self.target_velocity.linear.x == 0.0:
-            # keep old target orientation if the robot is not moving to avoid jittering
-            target_pose.orientation = self.target_pose_old.orientation
-        elif self.target_velocity.angular.z == 0.0:
+        if self.relative_position[0] == 0.0:
             target_pose.orientation = deepcopy(self.target_pose.orientation)
         else:
-            target_angle = math.atan2(global_velocity_y,global_velocity_x) #* np.sign(self.target_velocity.angular.z) #+ math.pi / 2 
-                
-            q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
-            target_pose.orientation.x = q[0]
-            target_pose.orientation.y = q[1]
-            target_pose.orientation.z = q[2]
-            target_pose.orientation.w = q[3]
+            # compute target angle
+            if  self.target_velocity.angular.z == 0.0 and self.target_velocity.linear.x == 0.0:
+                # keep old target orientation if the robot is not moving to avoid jittering
+                target_pose.orientation = self.target_pose_old.orientation
+            elif self.target_velocity.angular.z == 0.0:
+                target_pose.orientation = deepcopy(self.target_pose.orientation)
+            else:
+                target_angle = math.atan2(global_velocity_y,global_velocity_x) #* np.sign(self.target_velocity.angular.z) #+ math.pi / 2 
+                    
+                q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
+                target_pose.orientation.x = q[0]
+                target_pose.orientation.y = q[1]
+                target_pose.orientation.z = q[2]
+                target_pose.orientation.w = q[3]
 
         # update old target pose
         self.target_pose_old = deepcopy(target_pose)
 
         # compute the target velocity in the world frame based on leader velocity and relative position
         target_velocity = deepcopy(self.target_velocity)
-        target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2)
+        if self.relative_position[1] == 0.0:
+            target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2) * np.sign(self.relative_position[1]) * -1
+        else:
+            target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2)
+
         target_velocity.angular.z = self.target_velocity.angular.z 
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
