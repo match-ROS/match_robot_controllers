@@ -8,6 +8,8 @@ from nav_msgs.msg import Odometry
 from tf import transformations, broadcaster
 import math
 from ddynamic_reconfigure_python.ddynamic_reconfigure import DDynamicReconfigure
+from copy import deepcopy
+import numpy as np
 
 class DecentralizedLeaderFollowerController:
     
@@ -21,7 +23,7 @@ class DecentralizedLeaderFollowerController:
         self.cmd_vel_publisher = rospy.Publisher(self.follower_cmd_vel_topic, Twist, queue_size=10)
         self.cmd_vel_output = Twist()
         self.largest_error = [0.0,0.0,0.0] # used for logging - remove later
-
+        self.target_pose_old = Pose()
 
     def config(self):
         self.leader_pose_topic = rospy.get_param("~leader_pose_topic", "/target_pose")
@@ -36,6 +38,10 @@ class DecentralizedLeaderFollowerController:
         self.relative_position = rospy.get_param("~relative_position", [0.0,0.0,0.0])
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
+        rospy.loginfo("Kp_x: " + str(self.Kp_x))
+        rospy.loginfo("Kp_y: " + str(self.Kp_y))
+        rospy.loginfo("Kp_phi: " + str(self.Kp_phi))
+        rospy.set_param("~test", self.Kp_x)
 
     def run(self):
         
@@ -43,7 +49,11 @@ class DecentralizedLeaderFollowerController:
         rospy.wait_for_message(self.leader_pose_topic, PoseStamped)
         rospy.wait_for_message(self.actual_pose_topic, PoseStamped)
         rospy.wait_for_message(self.leader_velocity_topic, Twist)
+        rospy.loginfo("Got target pose, actual pose and target velocity")
         
+        # initialize old target pose
+        self.target_pose_old = deepcopy(self.target_pose)
+
         rate = rospy.Rate(self.control_rate)
         while not rospy.is_shutdown():
             if self.target_pose is not None and self.actual_pose is not None and self.target_velocity is not None:
@@ -68,17 +78,54 @@ class DecentralizedLeaderFollowerController:
     def update(self):
         
         # compute target pose in the world frame based on leader pose and relative position
-        target_pose = self.target_pose
+        target_pose = deepcopy(self.target_pose)
         phi = transformations.euler_from_quaternion([self.target_pose.orientation.x,self.target_pose.orientation.y,self.target_pose.orientation.z,self.target_pose.orientation.w])[2]
         
+        # position
         target_pose.position.x = self.target_pose.position.x + self.relative_position[0]*math.cos(phi) - self.relative_position[1]*math.sin(phi)
         target_pose.position.y = self.target_pose.position.y + self.relative_position[0]*math.sin(phi) + self.relative_position[1]*math.cos(phi)
-                
-        # compute the target velocity in the world frame based on leader velocity and relative position
-        target_velocity = self.target_velocity
-        r = math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2)
-        target_velocity.linear.x = self.target_velocity.linear.x + r*self.target_velocity.angular.z  # todo: check if this is correct
         
+        # compute follower velocity in world frame
+        local_velocity_x = self.target_velocity.linear.x - self.relative_position[1]*self.target_velocity.angular.z
+        local_velocity_y = self.relative_position[0]*self.target_velocity.angular.z
+
+        global_velocity_x = local_velocity_x * math.cos(phi) - local_velocity_y * math.sin(phi)
+        global_velocity_y = local_velocity_x * math.sin(phi) + local_velocity_y * math.cos(phi)
+
+        phi = transformations.euler_from_quaternion([self.target_pose.orientation.x,self.target_pose.orientation.y,self.target_pose.orientation.z,self.target_pose.orientation.w])[2] + self.relative_position[2]
+        
+        if self.relative_position[0] == 0.0:
+            target_pose.orientation = deepcopy(self.target_pose.orientation)
+        elif self.relative_position[0] == 0.0:
+            target_pose.orientation = deepcopy(self.target_pose.orientation)
+        else:
+            # compute target angle
+            if  self.target_velocity.angular.z == 0.0 and self.target_velocity.linear.x == 0.0:
+                # keep old target orientation if the robot is not moving to avoid jittering
+                target_pose.orientation = self.target_pose_old.orientation
+            elif self.target_velocity.angular.z == 0.0:
+                target_pose.orientation = deepcopy(self.target_pose.orientation)
+            else:
+                target_angle = math.atan2(global_velocity_y,global_velocity_x) #* np.sign(self.target_velocity.angular.z) #+ math.pi / 2 
+                    
+                q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
+                target_pose.orientation.x = q[0]
+                target_pose.orientation.y = q[1]
+                target_pose.orientation.z = q[2]
+                target_pose.orientation.w = q[3]
+
+        # update old target pose
+        self.target_pose_old = deepcopy(target_pose)
+
+        # compute the target velocity in the world frame based on leader velocity and relative position
+        target_velocity = deepcopy(self.target_velocity)
+        if self.relative_position[1] == 0.0:
+            target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2) * np.sign(self.relative_position[1]) * -1
+        else:
+            target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2)
+
+        target_velocity.angular.z = self.target_velocity.angular.z 
+
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
         return u_v, u_w        
     
@@ -86,8 +133,7 @@ class DecentralizedLeaderFollowerController:
     def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist(),i = 0):
             phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
             phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
-            # R = transformations.quaternion_matrix([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
-
+            
             e_x = (target_pose.position.x- actual_pose.position.x)
             e_y = (target_pose.position.y - actual_pose.position.y)
             e_phi = phi_target[2]-phi_act[2]
@@ -98,40 +144,44 @@ class DecentralizedLeaderFollowerController:
             elif e_phi < -math.pi:
                 e_phi = e_phi + 2*math.pi
             
-            
-            e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
-            e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
-            
-            
-            if e_local_x > self.largest_error[0]:
-                self.largest_error[0] = e_local_x
-                # rospy.loginfo("Largest error x: " + str(self.largest_error[0]))
-                
-            if e_local_y > self.largest_error[1]:
-                self.largest_error[1] = e_local_y
-                rospy.loginfo("Largest error y: " + str(self.largest_error[1]))
-                
-            if e_phi > self.largest_error[2]:
-                self.largest_error[2] = e_phi
-                rospy.loginfo("Largest error phi: " + str(self.largest_error[2]))
-            
-
             # broadcast actual pose
             self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
                                                 (actual_pose.orientation.x, actual_pose.orientation.y, actual_pose.orientation.z, actual_pose.orientation.w),
                                                 rospy.Time.now(),
-                                                "actual_pose",
+                                                self.tf_prefix + "/actual_pose",
                                                 "map")
 
             # broadcast target pose
             self.target_pose_broadcaster.sendTransform((target_pose.position.x, target_pose.position.y, 0.0),
                                                 (target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w),
                                                 rospy.Time.now(),
-                                                self.tf_prefix + "target_pose_control",
+                                                self.tf_prefix + "/target_pose_control",
                                                 "map")
+                       
+            e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
+            e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
 
-            u_v = (target_velocity.linear.x + target_velocity.angular.z * math.sqrt(self.relative_position[0]**2 + self.relative_position[1]**2)) * math.cos(e_phi) + self.Kp_x*e_local_x
-            u_w = target_velocity.angular.z + u_v * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+            # if the angular error is larger than 90 degrees, the robot should drive backwards
+            if abs(e_phi) > math.pi/2 and self.relative_position[0] != 0.0:
+                e_phi = e_phi - math.pi
+                # wrap to [-pi,pi] interval
+                if e_phi > math.pi:
+                    e_phi = e_phi - 2*math.pi
+                elif e_phi < -math.pi:
+                    e_phi = e_phi + 2*math.pi
+                backwards = True
+            else:
+                backwards = False
+
+            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
+            u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+            #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+
+            # if the robot should drive backwards, the linear velocity should be negative
+            if backwards == True:
+                u_v = -u_v
+                u_w = -u_w
+            
             
             # publish metadata
             # self.metadata_publisher.publish_controller_metadata(target_pose = target_pose, actual_pose = actual_pose, target_velocity = target_velocity, publish = True,
@@ -166,11 +216,11 @@ class DecentralizedLeaderFollowerController:
         
         
     def dyn_rec_callback(self,config, level):
-        self.Kp_x = config["Kp_x"]
-        self.Kp_y = config["Kp_y"]
-        self.Kp_phi = config["Kp_phi"]
-        self.lin_vel_max = config["lin_vel_max"]
-        self.ang_vel_max = config["ang_vel_max"]
+        # self.Kp_x = config["Kp_x"]
+        # self.Kp_y = config["Kp_y"]
+        # self.Kp_phi = config["Kp_phi"]
+        # self.lin_vel_max = config["lin_vel_max"]
+        # self.ang_vel_max = config["ang_vel_max"]
 
         return config
         

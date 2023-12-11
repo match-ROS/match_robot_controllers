@@ -5,7 +5,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
-from math import cos, sin
+from math import cos, sin, pi
 
 class SetLeaderPose():
 
@@ -40,8 +40,9 @@ class SetLeaderPose():
         leader_pose.pose.position.y = robot_pose.position.y + self.relative_pose[0]*sin(angle[2]) + self.relative_pose[1]*cos(angle[2])
 
         # calculate leader orientation
+
         leader_angle = angle[2] + self.relative_pose[2]
-        leader_pose.pose.orientation.x, leader_pose.pose.orientation.y, leader_pose.pose.orientation.z, leader_pose.pose.orientation.w = quaternion_from_euler(0.0, 0.0, leader_angle)
+        leader_pose.pose.orientation.x, leader_pose.pose.orientation.y, leader_pose.pose.orientation.z, leader_pose.pose.orientation.w = quaternion_from_euler(pi/2, 0.0, leader_angle)
 
         # publish leader pose
         self.leader_pose_pub.publish(leader_pose)
