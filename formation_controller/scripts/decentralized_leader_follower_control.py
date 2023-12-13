@@ -24,6 +24,7 @@ class DecentralizedLeaderFollowerController:
         self.cmd_vel_output = Twist()
         self.largest_error = [0.0,0.0,0.0] # used for logging - remove later
         self.target_pose_old = Pose()
+        self.e_x_integrated = 0.0
 
     def config(self):
         self.leader_pose_topic = rospy.get_param("~leader_pose_topic", "/target_pose")
@@ -32,12 +33,14 @@ class DecentralizedLeaderFollowerController:
         self.follower_cmd_vel_topic = rospy.get_param("~follower_cmd_vel_topic", "/cmd_vel")
         self.tf_prefix = rospy.get_param("~tf_prefix", "follower")
         self.control_rate = rospy.get_param("~control_rate", 100)
-        self.Kp_x = rospy.get_param("~Kp_x", 1.0)
-        self.Kp_y = rospy.get_param("~Kp_y", 1.0)
-        self.Kp_phi = rospy.get_param("~Kp_phi", 1.0)
+        self.Kp_x_i = rospy.get_param("~Kp_x_i", 0.01)
+        self.Kp_x = rospy.get_param("~Kp_x", 0.0)
+        self.Kp_y = rospy.get_param("~Kp_y", 0.0)
+        self.Kp_phi = rospy.get_param("~Kp_phi", 0.0)
         self.relative_position = rospy.get_param("~relative_position", [0.0,0.0,0.0])
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
+        self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
         rospy.loginfo("Kp_x: " + str(self.Kp_x))
         rospy.loginfo("Kp_y: " + str(self.Kp_y))
         rospy.loginfo("Kp_phi: " + str(self.Kp_phi))
@@ -160,6 +163,9 @@ class DecentralizedLeaderFollowerController:
                        
             e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
             e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
+            self.e_x_integrated += e_local_x
+            if abs(self.e_x_integrated) > self.e_x_integrated_max:
+                self.e_x_integrated = self.e_x_integrated_max * self.e_x_integrated/abs(self.e_x_integrated)
 
             # if the angular error is larger than 90 degrees, the robot should drive backwards
             if abs(e_phi) > math.pi/2 and self.relative_position[0] != 0.0:
@@ -173,7 +179,7 @@ class DecentralizedLeaderFollowerController:
             else:
                 backwards = False
 
-            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x
+            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x + self.Kp_x_i*self.e_x_integrated
             u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
             #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
 
