@@ -109,7 +109,7 @@ class DecentralizedLeaderFollowerController:
             elif self.target_velocity.angular.z == 0.0:
                 target_pose.orientation = deepcopy(self.target_pose.orientation)
             else:
-                target_angle = math.atan2(global_velocity_y,global_velocity_x) #* np.sign(self.target_velocity.angular.z) #+ math.pi / 2 
+                target_angle = math.atan2(global_velocity_y,global_velocity_x) #* self.sign(self.target_velocity.angular.z) #+ math.pi / 2 
                     
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
                 target_pose.orientation.x = q[0]
@@ -122,12 +122,15 @@ class DecentralizedLeaderFollowerController:
 
         # compute the target velocity in the world frame based on leader velocity and relative position
         target_velocity = deepcopy(self.target_velocity)
-        if self.relative_position[1] == 0.0:
-            target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2) * np.sign(self.relative_position[1]) * -1
-        else:
-            target_velocity.linear.x = math.sqrt(global_velocity_x**2 + global_velocity_y**2)
+
+        if self.relative_position[0] == 0.0:
+            target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * self.psign(self.relative_position[1])
+        elif self.relative_position[1] == 0.0:
+            target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z) #* self.psign(self.relative_position[0])
 
         target_velocity.angular.z = self.target_velocity.angular.z 
+
+        rospy.loginfo("target_velocity: " + str(target_velocity))
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
         return u_v, u_w        
@@ -203,6 +206,19 @@ class DecentralizedLeaderFollowerController:
     
     def target_velocity_callback(self, msg):
         self.target_velocity = msg
+
+    def psign(self, x):
+        if x >= 0:
+            return 1
+        else:
+            return -1
+        
+    def nsign(self, x):
+        if x >= 0:
+            return -1
+        else:
+            return 1
+
         
     def setup_ddynamic_reconfigure(self):
         # Create a D(ynamic)DynamicReconfigure
