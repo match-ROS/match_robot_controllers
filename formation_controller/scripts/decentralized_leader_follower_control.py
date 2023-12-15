@@ -130,7 +130,7 @@ class DecentralizedLeaderFollowerController:
 
         target_velocity.angular.z = self.target_velocity.angular.z 
 
-        rospy.loginfo("target_velocity: " + str(target_velocity))
+        #rospy.loginfo("target_velocity: " + str(target_velocity))
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
         return u_v, u_w        
@@ -183,7 +183,8 @@ class DecentralizedLeaderFollowerController:
                 backwards = False
 
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x + self.Kp_x_i*self.e_x_integrated
-            u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+            u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y * self.psign(u_v) + self.Kp_phi * math.sin(e_phi)) 
+           
             #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
 
             # if the robot should drive backwards, the linear velocity should be negative
