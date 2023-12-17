@@ -147,18 +147,31 @@ class DecentralizedLeaderFollowerController:
     
             
     def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist()):
-            phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
-            phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
+            phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])[2]
+            phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])[2]
             
+            if self.drive_backwards == True:
+                phi_act = phi_act + math.pi
+                # wrap to [-pi,pi] interval
+                if phi_act > math.pi:
+                    phi_act = phi_act - 2*math.pi
+                elif phi_act < -math.pi:
+                    phi_act = phi_act + 2*math.pi
+
             e_x = (target_pose.position.x- actual_pose.position.x)
             e_y = (target_pose.position.y - actual_pose.position.y)
-            e_phi = phi_target[2]-phi_act[2]
-            
+            e_phi = phi_target-phi_act
+
+            print("phi_act: " + str(phi_act), "phi_target: " + str(phi_target))
+            print("e_phi: " + str(e_phi))
+
             # wrap to [-pi,pi] interval
             if e_phi > math.pi:
                 e_phi = e_phi - 2*math.pi
             elif e_phi < -math.pi:
                 e_phi = e_phi + 2*math.pi
+
+            print("e_phi_wrapped: " + str(e_phi))
             
             # broadcast actual pose
             self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
@@ -174,8 +187,8 @@ class DecentralizedLeaderFollowerController:
                                                 self.tf_prefix + "/target_pose_control",
                                                 "map")
                        
-            e_local_x = e_x * math.cos(phi_target[2]) + e_y * math.sin(phi_target[2])
-            e_local_y = -e_x * math.sin(phi_target[2]) + e_y * math.cos(phi_target[2])
+            e_local_x = e_x * math.cos(phi_target) + e_y * math.sin(phi_target)
+            e_local_y = -e_x * math.sin(phi_target) + e_y * math.cos(phi_target)
             self.e_x_integrated += e_local_x
             if abs(self.e_x_integrated) > self.e_x_integrated_max:
                 self.e_x_integrated = self.e_x_integrated_max * self.e_x_integrated/abs(self.e_x_integrated)
@@ -193,9 +206,16 @@ class DecentralizedLeaderFollowerController:
                 backwards = False
 
             u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x + self.Ki_x*self.e_x_integrated
+
+            # if the robot should drive backwards, the linear velocity should be negative
+            # if self.drive_backwards == True:
+            #     u_v = -u_v
+
             u_w = target_velocity.angular.z +  self.Kp_y * e_local_y * self.psign(u_v) + self.Kp_phi * math.sin(e_phi) 
            
-            #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
+            if self.drive_backwards == True:
+                # u_w = -u_w
+                u_v = -u_v
 
             # if the robot should drive backwards, the linear velocity should be negative
             if backwards == True:
