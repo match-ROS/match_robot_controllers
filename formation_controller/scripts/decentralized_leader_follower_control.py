@@ -43,6 +43,7 @@ class DecentralizedLeaderFollowerController:
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
         self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 3.0)
+        self.drive_backwards = rospy.get_param("~drive_backwards", False)
         rospy.loginfo("Kp_x: " + str(self.Kp_x))
         rospy.loginfo("Kp_y: " + str(self.Kp_y))
         rospy.loginfo("Kp_phi: " + str(self.Kp_phi))
@@ -62,7 +63,7 @@ class DecentralizedLeaderFollowerController:
         self.rate = rospy.Rate(self.control_rate)
         while not rospy.is_shutdown():
             if self.target_pose is not None and self.actual_pose is not None and self.target_velocity is not None:
-                u_v, u_w = self.update()
+                u_v, u_w = self.compute_feed_forward_velocity()
             else:
                 u_v = 0.0
                 u_w = 0.0
@@ -79,7 +80,7 @@ class DecentralizedLeaderFollowerController:
             self.cmd_vel_publisher.publish(self.cmd_vel_output)
             self.rate.sleep()
             
-    def update(self):
+    def compute_feed_forward_velocity(self):
         
         # compute target pose in the world frame based on leader pose and relative position
         target_pose = deepcopy(self.target_pose)
