@@ -25,6 +25,7 @@ class DecentralizedLeaderFollowerController:
         self.largest_error = [0.0,0.0,0.0] # used for logging - remove later
         self.target_pose_old = Pose()
         self.e_x_integrated = 0.0
+        self.dphi_integrated = 0.0
 
     def config(self):
         self.leader_pose_topic = rospy.get_param("~leader_pose_topic", "/target_pose")
@@ -33,7 +34,7 @@ class DecentralizedLeaderFollowerController:
         self.follower_cmd_vel_topic = rospy.get_param("~follower_cmd_vel_topic", "/cmd_vel")
         self.tf_prefix = rospy.get_param("~tf_prefix", "follower")
         self.control_rate = rospy.get_param("~control_rate", 100)
-        self.Kp_x_i = rospy.get_param("~Kp_x_i", 0.01)
+        self.Ki_x = rospy.get_param("~Ki_x", 0.01)
         self.Kp_x = rospy.get_param("~Kp_x", 0.0)
         self.Kp_y = rospy.get_param("~Kp_y", 0.0)
         self.Kp_phi = rospy.get_param("~Kp_phi", 0.0)
@@ -41,6 +42,7 @@ class DecentralizedLeaderFollowerController:
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
+        self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 3.0)
         rospy.loginfo("Kp_x: " + str(self.Kp_x))
         rospy.loginfo("Kp_y: " + str(self.Kp_y))
         rospy.loginfo("Kp_phi: " + str(self.Kp_phi))
@@ -76,7 +78,6 @@ class DecentralizedLeaderFollowerController:
             self.cmd_vel_output.angular.z = u_w
             self.cmd_vel_publisher.publish(self.cmd_vel_output)
             rate.sleep()
-            
             
     def update(self):
         
@@ -117,26 +118,36 @@ class DecentralizedLeaderFollowerController:
                 target_pose.orientation.z = q[2]
                 target_pose.orientation.w = q[3]
 
-        # update old target pose
-        self.target_pose_old = deepcopy(target_pose)
-
         # compute the target velocity in the world frame based on leader velocity and relative position
         target_velocity = deepcopy(self.target_velocity)
 
+        # compute linear feedforward velocity
         if self.relative_position[0] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * self.psign(self.relative_position[1])
         elif self.relative_position[1] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z) #* self.psign(self.relative_position[0])
 
-        target_velocity.angular.z = self.target_velocity.angular.z 
+        
+        # compute angular feedforward velocity by comparing the new and old target pose
+        phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
+        phi_target_old = transformations.euler_from_quaternion([self.target_pose_old.orientation.x,self.target_pose_old.orientation.y,self.target_pose_old.orientation.z,self.target_pose_old.orientation.w])
+        self.dphi_integrated = self.smooth_derivative(phi_target[2], phi_target_old[2], self.dphi_integrated, self.dphi_integrated_max, 0.99)
+        
+        #print("dphi: " + str(self.dphi_integrated))
+        rospy.loginfo_throttle(0.5, "dphi: " + str(self.dphi_integrated))
 
-        #rospy.loginfo("target_velocity: " + str(target_velocity))
+        #target_velocity.angular.z = self.target_velocity.angular.z 
+        target_velocity.angular.z = self.dphi_integrated 
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
+
+        # update old target pose
+        self.target_pose_old = deepcopy(target_pose)
+
         return u_v, u_w        
     
             
-    def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist(),i = 0):
+    def cartesian_controller(self,actual_pose = Pose(),target_pose = Pose(),target_velocity = Twist()):
             phi_act = transformations.euler_from_quaternion([actual_pose.orientation.x,actual_pose.orientation.y,actual_pose.orientation.z,actual_pose.orientation.w])
             phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
             
@@ -182,8 +193,8 @@ class DecentralizedLeaderFollowerController:
             else:
                 backwards = False
 
-            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x + self.Kp_x_i*self.e_x_integrated
-            u_w = target_velocity.angular.z + ( self.Kp_y * e_local_y * self.psign(u_v) + self.Kp_phi * math.sin(e_phi)) 
+            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x + self.Ki_x*self.e_x_integrated
+            u_w = target_velocity.angular.z +  self.Kp_y * e_local_y * self.psign(u_v) + self.Kp_phi * math.sin(e_phi) 
            
             #u_w = target_velocity.angular.z + target_velocity.linear.x * ( self.Kp_y * e_local_y + self.Kp_phi * math.sin(e_phi))
 
@@ -219,6 +230,15 @@ class DecentralizedLeaderFollowerController:
             return -1
         else:
             return 1
+        
+    def smooth_derivative(self, value, value_old, integral, max_integral, decay):
+        # compute derivative and filter it with an exponential decay
+        derivative = (value - value_old)
+        integral = integral * decay + derivative 
+        if abs(integral) > max_integral:
+            integral = max_integral * integral/abs(integral)
+        return integral
+
 
         
     def setup_ddynamic_reconfigure(self):
