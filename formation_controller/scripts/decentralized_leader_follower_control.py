@@ -59,7 +59,7 @@ class DecentralizedLeaderFollowerController:
         # initialize old target pose
         self.target_pose_old = deepcopy(self.target_pose)
 
-        rate = rospy.Rate(self.control_rate)
+        self.rate = rospy.Rate(self.control_rate)
         while not rospy.is_shutdown():
             if self.target_pose is not None and self.actual_pose is not None and self.target_velocity is not None:
                 u_v, u_w = self.update()
@@ -77,7 +77,7 @@ class DecentralizedLeaderFollowerController:
             self.cmd_vel_output.linear.x = u_v
             self.cmd_vel_output.angular.z = u_w
             self.cmd_vel_publisher.publish(self.cmd_vel_output)
-            rate.sleep()
+            self.rate.sleep()
             
     def update(self):
         
@@ -131,13 +131,11 @@ class DecentralizedLeaderFollowerController:
         # compute angular feedforward velocity by comparing the new and old target pose
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
         phi_target_old = transformations.euler_from_quaternion([self.target_pose_old.orientation.x,self.target_pose_old.orientation.y,self.target_pose_old.orientation.z,self.target_pose_old.orientation.w])
-        self.dphi_integrated = self.smooth_derivative(phi_target[2], phi_target_old[2], self.dphi_integrated, self.dphi_integrated_max, 0.99)
-        
-        #print("dphi: " + str(self.dphi_integrated))
-        rospy.loginfo_throttle(0.5, "dphi: " + str(self.dphi_integrated))
-
-        #target_velocity.angular.z = self.target_velocity.angular.z 
-        target_velocity.angular.z = self.dphi_integrated 
+        # adjust the target angle for the formations angular velocity, this is done so only the changes relative to the leader orientation are considered
+        phi_target_adjusted = phi_target[2] - self.target_velocity.angular.z * self.rate.sleep_dur.to_sec()
+        # smooth the orientation change as the robot should not change its orientation too fast
+        self.dphi_integrated = self.smooth_derivative(phi_target_adjusted, phi_target_old[2], self.dphi_integrated, self.dphi_integrated_max, 0.01)
+        target_velocity.angular.z = self.target_velocity.angular.z + self.dphi_integrated 
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
 
@@ -234,7 +232,7 @@ class DecentralizedLeaderFollowerController:
     def smooth_derivative(self, value, value_old, integral, max_integral, decay):
         # compute derivative and filter it with an exponential decay
         derivative = (value - value_old)
-        integral = integral * decay + derivative 
+        integral = integral * (1-decay) + derivative 
         if abs(integral) > max_integral:
             integral = max_integral * integral/abs(integral)
         return integral
