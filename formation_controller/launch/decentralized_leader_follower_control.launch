@@ -6,6 +6,7 @@
     <arg name="actual_pose_topic" default='/mur620c/mir_pose_stamped_simple'/>
     <arg name="follower_cmd_vel_topic" default='/mur620c/cmd_vel'/>
     <arg name="relative_position" default="[0.0, 1.0, 0.0]"/>
+    <arg name="drive_backwards"   default="False" />
     
 
     <rosparam file="$(find formation_controller)/config/decentralized_leader_follower_control.yaml" command="load" subst_value="true"/>
@@ -17,6 +18,7 @@
         <param name="actual_pose_topic" value="$(arg actual_pose_topic)"/>
         <param name="follower_cmd_vel_topic" value="$(arg follower_cmd_vel_topic)"/>
         <param name="tf_prefix" value="$(arg tf_prefix)"/>
+        <param name="drive_backwards" value="$(arg drive_backwards)"/>
 	</node>
 
 </launch>
