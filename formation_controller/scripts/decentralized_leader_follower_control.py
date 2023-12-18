@@ -130,12 +130,17 @@ class DecentralizedLeaderFollowerController:
 
         
         # compute angular feedforward velocity by comparing the new and old target pose
-        phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])
-        phi_target_old = transformations.euler_from_quaternion([self.target_pose_old.orientation.x,self.target_pose_old.orientation.y,self.target_pose_old.orientation.z,self.target_pose_old.orientation.w])
+        phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])[2]
+        phi_target_old = transformations.euler_from_quaternion([self.target_pose_old.orientation.x,self.target_pose_old.orientation.y,self.target_pose_old.orientation.z,self.target_pose_old.orientation.w])[2]
+        pi_jump = self.detect_pi_jump(phi_target, phi_target_old)
+        if pi_jump == True:
+            # prevent the pi jump from being considered as a large change in orientation
+            phi_target_old = phi_target
+
         # adjust the target angle for the formations angular velocity, this is done so only the changes relative to the leader orientation are considered
-        phi_target_adjusted = phi_target[2] - self.target_velocity.angular.z * self.rate.sleep_dur.to_sec()
+        phi_target_adjusted = phi_target - self.target_velocity.angular.z * self.rate.sleep_dur.to_sec()
         # smooth the orientation change as the robot should not change its orientation too fast
-        self.dphi_integrated = self.smooth_derivative(phi_target_adjusted, phi_target_old[2], self.dphi_integrated, self.dphi_integrated_max, 0.01)
+        self.dphi_integrated = self.smooth_derivative(phi_target_adjusted, phi_target_old, self.dphi_integrated, self.dphi_integrated_max, 0.01)
         target_velocity.angular.z = self.target_velocity.angular.z + self.dphi_integrated 
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
@@ -162,16 +167,11 @@ class DecentralizedLeaderFollowerController:
             e_y = (target_pose.position.y - actual_pose.position.y)
             e_phi = phi_target-phi_act
 
-            print("phi_act: " + str(phi_act), "phi_target: " + str(phi_target))
-            print("e_phi: " + str(e_phi))
-
             # wrap to [-pi,pi] interval
             if e_phi > math.pi:
                 e_phi = e_phi - 2*math.pi
             elif e_phi < -math.pi:
                 e_phi = e_phi + 2*math.pi
-
-            print("e_phi_wrapped: " + str(e_phi))
             
             # broadcast actual pose
             self.target_pose_broadcaster.sendTransform((actual_pose.position.x, actual_pose.position.y, 0.0),
@@ -258,7 +258,14 @@ class DecentralizedLeaderFollowerController:
             integral = max_integral * integral/abs(integral)
         return integral
 
-
+    def detect_pi_jump(self, value, value_old):
+        # detect if the value jumps from -pi to pi or vice versa
+        if value - value_old > math.pi and value > math.pi/2 and value_old < -math.pi/2:
+            return True
+        elif value - value_old < -math.pi and value < -math.pi/2 and value_old > math.pi/2:
+            return True
+        else:
+            return False
         
     def setup_ddynamic_reconfigure(self):
         # Create a D(ynamic)DynamicReconfigure
@@ -270,6 +277,7 @@ class DecentralizedLeaderFollowerController:
         ddynrec.add_variable("Kp_phi", "float/double variable", self.Kp_phi, 0.0, self.Kp_phi * 5)
         ddynrec.add_variable("lin_vel_max", "float/double variable", self.lin_vel_max, 0.0, self.lin_vel_max * 5)
         ddynrec.add_variable("ang_vel_max", "float/double variable", self.ang_vel_max, 0.0, self.ang_vel_max * 5)
+        ddynrec.add_variable("Ki_x", "float/double variable", self.Ki_x, 0.0, self.Ki_x * 5)
         #ddynrec.add_variable("servo_position", "integer variable", self.servo_position, 0, 1200)
         
 
@@ -278,11 +286,12 @@ class DecentralizedLeaderFollowerController:
         
         
     def dyn_rec_callback(self,config, level):
-        # self.Kp_x = config["Kp_x"]
-        # self.Kp_y = config["Kp_y"]
-        # self.Kp_phi = config["Kp_phi"]
-        # self.lin_vel_max = config["lin_vel_max"]
-        # self.ang_vel_max = config["ang_vel_max"]
+        self.Kp_x = config["Kp_x"]
+        self.Kp_y = config["Kp_y"]
+        self.Kp_phi = config["Kp_phi"]
+        self.lin_vel_max = config["lin_vel_max"]
+        self.ang_vel_max = config["ang_vel_max"]
+        self.Ki_x = config["Ki_x"]
 
         return config
         
