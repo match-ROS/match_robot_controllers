@@ -42,7 +42,7 @@ class DecentralizedLeaderFollowerController:
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
-        self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 3.0)
+        self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 1.0)
         self.drive_backwards = rospy.get_param("~drive_backwards", False)
         rospy.loginfo("Kp_x: " + str(self.Kp_x))
         rospy.loginfo("Kp_y: " + str(self.Kp_y))
@@ -142,6 +142,15 @@ class DecentralizedLeaderFollowerController:
         # smooth the orientation change as the robot should not change its orientation too fast
         self.dphi_integrated = self.smooth_derivative(phi_target_adjusted, phi_target_old, self.dphi_integrated, self.dphi_integrated_max, 0.01)
         target_velocity.angular.z = self.target_velocity.angular.z + self.dphi_integrated 
+           
+        if abs(target_velocity.angular.z) > self.ang_vel_max:
+            target_velocity.angular.z = self.target_velocity.angular.z
+            print("angular velocity limited")
+            print("target velocity: " + str(target_velocity.angular.z))
+            print("dphi integrated: " + str(self.dphi_integrated))
+            print("phi_target_adjusted: " + str(phi_target_adjusted))
+            print("phi_target_old: " + str(phi_target_old))
+
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
 
@@ -253,6 +262,11 @@ class DecentralizedLeaderFollowerController:
     def smooth_derivative(self, value, value_old, integral, max_integral, decay):
         # compute derivative and filter it with an exponential decay
         derivative = (value - value_old)
+        if derivative > math.pi:
+            derivative = derivative - 2*math.pi
+        elif derivative < -math.pi:
+            derivative = derivative + 2*math.pi
+
         integral = integral * (1-decay) + derivative 
         if abs(integral) > max_integral:
             integral = max_integral * integral/abs(integral)
