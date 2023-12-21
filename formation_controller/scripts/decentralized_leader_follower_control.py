@@ -42,7 +42,7 @@ class DecentralizedLeaderFollowerController:
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
-        self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 1.0)
+        self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 2.0)
         self.drive_backwards = rospy.get_param("~drive_backwards", False)
         rospy.loginfo("Kp_x: " + str(self.Kp_x))
         rospy.loginfo("Kp_y: " + str(self.Kp_y))
@@ -269,9 +269,10 @@ class DecentralizedLeaderFollowerController:
         elif derivative < -math.pi:
             derivative = derivative + 2*math.pi
 
-        integral = integral * (1-decay) + derivative 
+        integral = integral * (1-decay) + derivative # * decay
         if abs(integral) > max_integral:
             integral = max_integral * integral/abs(integral)
+            rospy.logwarn("Integral limited: " + str(integral))
         return integral
 
     def detect_pi_jump(self, value, value_old):
