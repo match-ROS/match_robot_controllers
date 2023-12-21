@@ -143,14 +143,14 @@ class DecentralizedLeaderFollowerController:
         self.dphi_integrated = self.smooth_derivative(phi_target_adjusted, phi_target_old, self.dphi_integrated, self.dphi_integrated_max, 0.01)
         target_velocity.angular.z = self.target_velocity.angular.z + self.dphi_integrated 
            
-        if abs(target_velocity.angular.z) > self.ang_vel_max:
-            target_velocity.angular.z = self.target_velocity.angular.z
+        if abs(target_velocity.angular.z) > 1.0: # self.ang_vel_max:
             print("angular velocity limited")
             print("target velocity: " + str(target_velocity.angular.z))
+            print("self.target_velocity.angular.z: " + str(self.target_velocity.angular.z))
             print("dphi integrated: " + str(self.dphi_integrated))
             print("phi_target_adjusted: " + str(phi_target_adjusted))
             print("phi_target_old: " + str(phi_target_old))
-
+            target_velocity.angular.z = self.target_velocity.angular.z
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
 
@@ -246,6 +246,8 @@ class DecentralizedLeaderFollowerController:
     
     def target_velocity_callback(self, msg):
         self.target_velocity = msg
+        if abs(self.target_velocity.angular.z) > 1.0:
+            rospy.logerr("Target angular velocity is too high: " + str(self.target_velocity.angular.z))
 
     def psign(self, x):
         if x >= 0:
