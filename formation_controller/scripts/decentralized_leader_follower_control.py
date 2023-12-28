@@ -124,11 +124,10 @@ class DecentralizedLeaderFollowerController:
 
         # compute linear feedforward velocity
         if self.relative_position[0] == 0.0:
-            target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * self.psign(self.relative_position[1])
+            target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * -1 #self.psign(self.relative_position[1])  #self.nsign(self.target_velocity.angular.z)
         elif self.relative_position[1] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z) #* self.psign(self.relative_position[0])
 
-        
         # compute angular feedforward velocity by comparing the new and old target pose
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])[2]
         phi_target_old = transformations.euler_from_quaternion([self.target_pose_old.orientation.x,self.target_pose_old.orientation.y,self.target_pose_old.orientation.z,self.target_pose_old.orientation.w])[2]
