@@ -111,8 +111,10 @@ class DecentralizedLeaderFollowerController:
             elif self.target_velocity.angular.z == 0.0:
                 target_pose.orientation = deepcopy(self.target_pose.orientation)
             else:
-                target_angle = math.atan2(global_velocity_y,global_velocity_x) #* self.sign(self.target_velocity.angular.z) #+ math.pi / 2 
+                target_angle = math.atan2(global_velocity_y,global_velocity_x) - math.pi/2 * (1 - self.psign(self.target_velocity.linear.x)) #* self.sign(self.target_velocity.angular.z) #+ math.pi / 2 
                     
+                rospy.loginfo("target angle: " + str(math.atan2(global_velocity_y,global_velocity_x)))
+
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
                 target_pose.orientation.x = q[0]
                 target_pose.orientation.y = q[1]
@@ -123,10 +125,13 @@ class DecentralizedLeaderFollowerController:
         target_velocity = deepcopy(self.target_velocity)
 
         # compute linear feedforward velocity
-        if self.relative_position[0] == 0.0:
+        if self.relative_position[0] != 0.0 and self.relative_position[1] != 0.0:
+            target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z)
+        elif self.relative_position[0] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * -1 #self.psign(self.relative_position[1])  #self.nsign(self.target_velocity.angular.z)
         elif self.relative_position[1] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z) #* self.psign(self.relative_position[0])
+
 
         # compute angular feedforward velocity by comparing the new and old target pose
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])[2]
@@ -141,15 +146,6 @@ class DecentralizedLeaderFollowerController:
         # smooth the orientation change as the robot should not change its orientation too fast
         self.dphi_integrated = self.smooth_derivative(phi_target_adjusted, phi_target_old, self.dphi_integrated, self.dphi_integrated_max, 0.01)
         target_velocity.angular.z = self.target_velocity.angular.z + self.dphi_integrated 
-           
-        if abs(target_velocity.angular.z) > 1.0: # self.ang_vel_max:
-            print("angular velocity limited")
-            print("target velocity: " + str(target_velocity.angular.z))
-            print("self.target_velocity.angular.z: " + str(self.target_velocity.angular.z))
-            print("dphi integrated: " + str(self.dphi_integrated))
-            print("phi_target_adjusted: " + str(phi_target_adjusted))
-            print("phi_target_old: " + str(phi_target_old))
-            target_velocity.angular.z = self.target_velocity.angular.z
 
         u_v, u_w = self.cartesian_controller(self.actual_pose, target_pose, target_velocity)
 
