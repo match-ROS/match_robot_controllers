@@ -42,7 +42,7 @@ class DecentralizedLeaderFollowerController:
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
-        self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 3.0)
+        self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 2.0)
         self.drive_backwards = rospy.get_param("~drive_backwards", False)
         rospy.loginfo("Kp_x: " + str(self.Kp_x))
         rospy.loginfo("Kp_y: " + str(self.Kp_y))
@@ -111,8 +111,10 @@ class DecentralizedLeaderFollowerController:
             elif self.target_velocity.angular.z == 0.0:
                 target_pose.orientation = deepcopy(self.target_pose.orientation)
             else:
-                target_angle = math.atan2(global_velocity_y,global_velocity_x) #* self.sign(self.target_velocity.angular.z) #+ math.pi / 2 
+                target_angle = math.atan2(global_velocity_y,global_velocity_x) - math.pi/2 * (1 - self.psign(self.target_velocity.linear.x)) #* self.sign(self.target_velocity.angular.z) #+ math.pi / 2 
                     
+                rospy.loginfo("target angle: " + str(math.atan2(global_velocity_y,global_velocity_x)))
+
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
                 target_pose.orientation.x = q[0]
                 target_pose.orientation.y = q[1]
@@ -123,12 +125,14 @@ class DecentralizedLeaderFollowerController:
         target_velocity = deepcopy(self.target_velocity)
 
         # compute linear feedforward velocity
-        if self.relative_position[0] == 0.0:
-            target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * self.psign(self.relative_position[1])
+        if self.relative_position[0] != 0.0 and self.relative_position[1] != 0.0:
+            target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z)
+        elif self.relative_position[0] == 0.0:
+            target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * -1 #self.psign(self.relative_position[1])  #self.nsign(self.target_velocity.angular.z)
         elif self.relative_position[1] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z) #* self.psign(self.relative_position[0])
 
-        
+
         # compute angular feedforward velocity by comparing the new and old target pose
         phi_target = transformations.euler_from_quaternion([target_pose.orientation.x,target_pose.orientation.y,target_pose.orientation.z,target_pose.orientation.w])[2]
         phi_target_old = transformations.euler_from_quaternion([self.target_pose_old.orientation.x,self.target_pose_old.orientation.y,self.target_pose_old.orientation.z,self.target_pose_old.orientation.w])[2]
@@ -237,6 +241,8 @@ class DecentralizedLeaderFollowerController:
     
     def target_velocity_callback(self, msg):
         self.target_velocity = msg
+        if abs(self.target_velocity.angular.z) > 1.0:
+            rospy.logerr("Target angular velocity is too high: " + str(self.target_velocity.angular.z))
 
     def psign(self, x):
         if x >= 0:
@@ -253,9 +259,15 @@ class DecentralizedLeaderFollowerController:
     def smooth_derivative(self, value, value_old, integral, max_integral, decay):
         # compute derivative and filter it with an exponential decay
         derivative = (value - value_old)
-        integral = integral * (1-decay) + derivative 
+        if derivative > math.pi:
+            derivative = derivative - 2*math.pi
+        elif derivative < -math.pi:
+            derivative = derivative + 2*math.pi
+
+        integral = integral * (1-decay) + derivative # * decay
         if abs(integral) > max_integral:
             integral = max_integral * integral/abs(integral)
+            rospy.logwarn("Integral limited: " + str(integral))
         return integral
 
     def detect_pi_jump(self, value, value_old):
