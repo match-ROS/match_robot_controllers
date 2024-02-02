@@ -1,0 +1,15 @@
+<launch>
+
+  <arg name="frame_id"         default="map" />
+
+
+
+  <group ns="virtual_object">
+    <rosparam file="$(find virtual_object)/config/virtual_object.yaml" command="load" />
+
+    <node name="virtual_object_node" pkg="virtual_object" type="virtual_object.py" output="screen">
+      <param name="frame_id" type="string" value="$(arg frame_id)"/>
+    </node>
+  </group>
+
+</launch>
