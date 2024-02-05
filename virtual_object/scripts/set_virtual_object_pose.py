@@ -16,7 +16,7 @@ class SetVirtualObjectPose():
     def __init__(self):
         self.config()
         self.got_object_pose = False
-        rospy.Subscriber(self.TCP_pose_topic, Pose, self.TCP_pose_callback)
+        rospy.Subscriber(self.TCP_pose_topic, PoseStamped, self.TCP_pose_callback)
         self.set_object_pose_pub = rospy.Publisher(self.set_object_pose_topic, PoseStamped, queue_size=1)
         rospy.sleep(1.0)
         if not self.got_object_pose:
@@ -27,18 +27,18 @@ class SetVirtualObjectPose():
             rospy.signal_shutdown('Got robot pose. Shutting down node.')
 
     def config(self):
-        self.TCP_pose_topic = rospy.get_param('~TCP_pose_topic', '/mur620a/UR10_l/tcp_pose')
+        self.TCP_pose_topic = rospy.get_param('~TCP_pose_topic', '/mur620a/UR10_l/global_tcp_pose')
         self.set_object_pose_topic = rospy.get_param('~set_object_pose_topic', '/virtual_object/set_pose')
         self.relative_pose = rospy.get_param('~relative_pose', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         
 
 
     def TCP_pose_callback(self, data):
-        TCP_pose = data
+        TCP_pose = data.pose
         self.got_object_pose = True
         object_pose = PoseStamped()
         object_pose.header.stamp = rospy.Time.now()
-        object_pose.header.frame_id = "map"
+        object_pose.header.frame_id = data.header.frame_id
 
         R = transformations.quaternion_matrix([TCP_pose.orientation.x, TCP_pose.orientation.y, TCP_pose.orientation.z, TCP_pose.orientation.w])
         p = [TCP_pose.position.x, TCP_pose.position.y, TCP_pose.position.z]
