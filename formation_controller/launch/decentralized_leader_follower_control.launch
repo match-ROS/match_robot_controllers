@@ -3,9 +3,9 @@
     <arg name="tf_prefix" default="tf_prefix"/>
     <arg name="leader_pose_topic" default='/virtual_leader/leader_pose'/>
     <arg name="leader_velocity_topic" default='/virtual_leader/leader_vel'/>
-    <arg name="actual_pose_topic" default='/mur620c/mir_pose_stamped_simple'/>
-    <arg name="follower_cmd_vel_topic" default='/mur620c/cmd_vel'/>
-    <arg name="relative_position" default="[0.0, 1.0, 0.0]"/>
+    <arg name="actual_pose_topic" default='/mur620a/mir_pose_stamped_simple'/>
+    <arg name="follower_cmd_vel_topic" default='/mur620a/cmd_vel'/>
+    <arg name="relative_position" default="[0.0, 0.0, 0.0]"/>
     <arg name="drive_backwards"   default="False" />
     
 

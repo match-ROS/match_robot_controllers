@@ -1,6 +1,6 @@
 <launch>
 
-  <arg name="relative_pose"  default="[-1.5, 1.0, 0.0]"/>
+  <arg name="relative_pose"  default="[0.0, 0.0, 0.0]"/>
   <arg name="robot_pose_topic" default="/mur620d/mir_pose_stamped_simple"/>
 
   <group ns="virtual_leader">

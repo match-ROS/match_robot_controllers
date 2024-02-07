@@ -112,8 +112,6 @@ class DecentralizedLeaderFollowerController:
                 target_pose.orientation = deepcopy(self.target_pose.orientation)
             else:
                 target_angle = math.atan2(global_velocity_y,global_velocity_x) - math.pi/2 * (1 - self.psign(self.target_velocity.linear.x)) #* self.sign(self.target_velocity.angular.z) #+ math.pi / 2 
-                    
-                rospy.loginfo("target angle: " + str(math.atan2(global_velocity_y,global_velocity_x)))
 
                 q = transformations.quaternion_from_euler(0.0, 0.0, target_angle)
                 target_pose.orientation.x = q[0]
