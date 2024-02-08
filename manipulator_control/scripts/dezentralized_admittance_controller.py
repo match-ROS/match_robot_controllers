@@ -26,10 +26,10 @@ class DezentralizedAdmittanceController():
         self.wrench_frame = rospy.get_param('wrench_frame','/mur620a/UR10_l/tool0')
         self.mir_pose_topic = rospy.get_param('mir_pose_topic','/mur620a/mir_pose_simple')
         self.manipulator_base_frame = rospy.get_param('manipulator_base_frame','mur620a/UR10_l/base_link')
-        self.relative_pose = rospy.get_param('relative_pose', [0.2,0.0,0.0,0,0,3.1415])
-        self.admittance = rospy.get_param('admittance', [0.0,0.0,0.0,0.001,0.001,0.001])
+        self.relative_pose = rospy.get_param('relative_pose', [0.0,0.2,0.0,0,0,3.1415])
+        self.admittance = rospy.get_param('admittance', [0.02,0.02,0.02,0.001,0.001,0.001])
         self.wrench_filter_alpha = rospy.get_param('wrench_filter_alpha', 0.01)
-        self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.01,0.01,0.01,0.01])
+        self.position_error_gain = rospy.get_param('position_error_gain', [0.3,0.3,0.1,0.01,0.01,0.01])
         self.linear_velocity_limit = rospy.get_param('linear_velocity_limit', 0.1)
         self.angular_velocity_limit = rospy.get_param('angular_velocity_limit', 0.1)
         pass
@@ -135,9 +135,6 @@ class DezentralizedAdmittanceController():
         if abs(self.manipulator_vel.angular.z) > self.angular_velocity_limit:
             self.manipulator_vel.angular.z = self.angular_velocity_limit * self.manipulator_vel.angular.z / abs(self.manipulator_vel.angular.z)
 
-        # print("Manipulator Velocity:")
-        print("Linear Velocity: ", self.manipulator_vel.linear.x, self.manipulator_vel.linear.y, self.manipulator_vel.linear.z)
-
         # publish manipulator velocity
         self.manipulator_command_pub.publish(self.manipulator_vel)
 
@@ -209,9 +206,9 @@ class DezentralizedAdmittanceController():
         self.manipulator_vel.linear.y = self.grasping_point_velocity_manipulator.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1]
         self.manipulator_vel.linear.z = self.grasping_point_velocity_manipulator.linear.z + self.equilibrium_position_offset.position.z * self.position_error_gain[2]
         euler = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
-        # self.manipulator_vel.angular.x = self.object_vel.angular.x + euler[0] * self.position_error_gain[3] 
-        # self.manipulator_vel.angular.y = self.object_vel.angular.y + euler[1] * self.position_error_gain[4]
-        # self.manipulator_vel.angular.z = self.object_vel.angular.z + euler[2] * self.position_error_gain[5]
+        self.manipulator_vel.angular.x = self.object_vel.angular.x + euler[0] * self.position_error_gain[3] 
+        self.manipulator_vel.angular.y = self.object_vel.angular.y + euler[1] * self.position_error_gain[4]
+        self.manipulator_vel.angular.z = self.object_vel.angular.z + euler[2] * self.position_error_gain[5]
 
         # self.manipulator_vel.linear.z *= -1
         self.manipulator_vel.linear.x *= -1
