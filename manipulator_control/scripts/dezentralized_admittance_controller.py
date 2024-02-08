@@ -26,10 +26,12 @@ class DezentralizedAdmittanceController():
         self.wrench_frame = rospy.get_param('wrench_frame','/mur620a/UR10_l/tool0')
         self.mir_pose_topic = rospy.get_param('mir_pose_topic','/mur620a/mir_pose_simple')
         self.manipulator_base_frame = rospy.get_param('manipulator_base_frame','mur620a/UR10_l/base_link')
-        self.relative_pose = rospy.get_param('relative_pose', [0.0,0.0,0.2,0,0,3.1415])
+        self.relative_pose = rospy.get_param('relative_pose', [0.2,0.0,0.0,0,0,3.1415])
         self.admittance = rospy.get_param('admittance', [0.0,0.0,0.0,0.001,0.001,0.001])
         self.wrench_filter_alpha = rospy.get_param('wrench_filter_alpha', 0.01)
-        self.position_error_gain = rospy.get_param('position_error_gain', [0.2,0.2,0.01,0.01,0.01,0.01])
+        self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.01,0.01,0.01,0.01])
+        self.linear_velocity_limit = rospy.get_param('linear_velocity_limit', 0.1)
+        self.angular_velocity_limit = rospy.get_param('angular_velocity_limit', 0.1)
         pass
 
 
@@ -52,6 +54,8 @@ class DezentralizedAdmittanceController():
         self.admittance_position_offset = Pose()
         self.equilibrium_position_offset = Pose()
         self.grasping_point_velocity_local = Twist()
+        self.grasping_point_velocity_global = Twist()
+        self.grasping_point_velocity_manipulator = Twist()
 
         # initialize broadcaster
         self.br = TransformBroadcaster()
@@ -106,8 +110,59 @@ class DezentralizedAdmittanceController():
         self.compute_equilibrium_position_offset()
         # compute grapsing point velocity
         self.compute_grasping_point_velocity_local()
+        # transform grasping point velocity to global frame
+        self.transform_grasping_point_velocity_global()
+        # transform grasping point velocity to manipulator frame
+        self.transform_grasping_point_velocity_manipulator()
+
         # compute manipulator velocity
-        #self.compute_manipulator_velocity()
+        self.compute_manipulator_velocity()
+        # limit and publish manipulator velocity
+        self.limit_and_publish_manipulator_velocity()
+
+    def limit_and_publish_manipulator_velocity(self):
+        # limit manipulator velocity
+        if abs(self.manipulator_vel.linear.x) > self.linear_velocity_limit:
+            self.manipulator_vel.linear.x = self.linear_velocity_limit * self.manipulator_vel.linear.x / abs(self.manipulator_vel.linear.x)
+        if abs(self.manipulator_vel.linear.y) > self.linear_velocity_limit:
+            self.manipulator_vel.linear.y = self.linear_velocity_limit * self.manipulator_vel.linear.y / abs(self.manipulator_vel.linear.y)
+        if abs(self.manipulator_vel.linear.z) > self.linear_velocity_limit:
+            self.manipulator_vel.linear.z = self.linear_velocity_limit * self.manipulator_vel.linear.z / abs(self.manipulator_vel.linear.z)
+        if abs(self.manipulator_vel.angular.x) > self.angular_velocity_limit:
+            self.manipulator_vel.angular.x = self.angular_velocity_limit * self.manipulator_vel.angular.x / abs(self.manipulator_vel.angular.x)
+        if abs(self.manipulator_vel.angular.y) > self.angular_velocity_limit:
+            self.manipulator_vel.angular.y = self.angular_velocity_limit * self.manipulator_vel.angular.y / abs(self.manipulator_vel.angular.y)
+        if abs(self.manipulator_vel.angular.z) > self.angular_velocity_limit:
+            self.manipulator_vel.angular.z = self.angular_velocity_limit * self.manipulator_vel.angular.z / abs(self.manipulator_vel.angular.z)
+
+        # print("Manipulator Velocity:")
+        print("Linear Velocity: ", self.manipulator_vel.linear.x, self.manipulator_vel.linear.y, self.manipulator_vel.linear.z)
+
+        # publish manipulator velocity
+        self.manipulator_command_pub.publish(self.manipulator_vel)
+
+    def transform_grasping_point_velocity_manipulator(self):
+        # transform grasping point velocity to manipulator frame
+        R = transformations.quaternion_matrix([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w])
+        R = transpose(R)
+        self.grasping_point_velocity_manipulator.linear.x = R[0,0]*self.grasping_point_velocity_global.linear.x + R[0,1]*self.grasping_point_velocity_global.linear.y + R[0,2]*self.grasping_point_velocity_global.linear.z
+        self.grasping_point_velocity_manipulator.linear.y = R[1,0]*self.grasping_point_velocity_global.linear.x + R[1,1]*self.grasping_point_velocity_global.linear.y + R[1,2]*self.grasping_point_velocity_global.linear.z
+        self.grasping_point_velocity_manipulator.linear.z = R[2,0]*self.grasping_point_velocity_global.linear.x + R[2,1]*self.grasping_point_velocity_global.linear.y + R[2,2]*self.grasping_point_velocity_global.linear.z
+        self.grasping_point_velocity_manipulator.angular.x = self.grasping_point_velocity_global.angular.x
+        self.grasping_point_velocity_manipulator.angular.y = self.grasping_point_velocity_global.angular.y
+        self.grasping_point_velocity_manipulator.angular.z = self.grasping_point_velocity_global.angular.z
+        
+
+    def transform_grasping_point_velocity_global(self):
+        # transform grasping point velocity to global frame
+        R = transformations.quaternion_matrix([self.object_pose.pose.orientation.x,self.object_pose.pose.orientation.y,self.object_pose.pose.orientation.z,self.object_pose.pose.orientation.w])
+        R = transpose(R)
+        self.grasping_point_velocity_global.linear.x = R[0,0]*self.grasping_point_velocity_local.linear.x + R[0,1]*self.grasping_point_velocity_local.linear.y + R[0,2]*self.grasping_point_velocity_local.linear.z
+        self.grasping_point_velocity_global.linear.y = R[1,0]*self.grasping_point_velocity_local.linear.x + R[1,1]*self.grasping_point_velocity_local.linear.y + R[1,2]*self.grasping_point_velocity_local.linear.z
+        self.grasping_point_velocity_global.linear.z = R[2,0]*self.grasping_point_velocity_local.linear.x + R[2,1]*self.grasping_point_velocity_local.linear.y + R[2,2]*self.grasping_point_velocity_local.linear.z
+        self.grasping_point_velocity_global.angular.x = self.grasping_point_velocity_local.angular.x
+        self.grasping_point_velocity_global.angular.y = self.grasping_point_velocity_local.angular.y
+        self.grasping_point_velocity_global.angular.z = self.grasping_point_velocity_local.angular.z
 
     def compute_grasping_point_velocity_local(self):
         # compute the local grasping point velocity based on the object velocity and the relative pose
@@ -118,7 +173,7 @@ class DezentralizedAdmittanceController():
         self.grasping_point_velocity_local.angular.y = self.object_vel.angular.y
         self.grasping_point_velocity_local.angular.z = self.object_vel.angular.z
 
-        print("Grasping Point Velocity: ", self.grasping_point_velocity_local.linear.x, self.grasping_point_velocity_local.linear.y, self.grasping_point_velocity_local.linear.z)
+        #print("Grasping Point Velocity: ", self.grasping_point_velocity_local.linear.x, self.grasping_point_velocity_local.linear.y, self.grasping_point_velocity_local.linear.z)
 
     def compute_equilibrium_position_offset(self):
         self.equilibrium_position_offset.position.x = self.pose_error_local.position.x + self.admittance_position_offset.position.x
@@ -150,9 +205,9 @@ class DezentralizedAdmittanceController():
 
     def compute_manipulator_velocity(self):
         # compute manipulator velocity
-        self.manipulator_vel.linear.x = self.object_vel.linear.x + self.equilibrium_position_offset.position.x * self.position_error_gain[0]
-        self.manipulator_vel.linear.y = self.object_vel.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1]
-        self.manipulator_vel.linear.z = self.object_vel.linear.z + self.equilibrium_position_offset.position.z * self.position_error_gain[2]
+        self.manipulator_vel.linear.x = self.grasping_point_velocity_manipulator.linear.x + self.equilibrium_position_offset.position.x * self.position_error_gain[0]
+        self.manipulator_vel.linear.y = self.grasping_point_velocity_manipulator.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1]
+        self.manipulator_vel.linear.z = self.grasping_point_velocity_manipulator.linear.z + self.equilibrium_position_offset.position.z * self.position_error_gain[2]
         euler = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
         # self.manipulator_vel.angular.x = self.object_vel.angular.x + euler[0] * self.position_error_gain[3] 
         # self.manipulator_vel.angular.y = self.object_vel.angular.y + euler[1] * self.position_error_gain[4]
@@ -161,13 +216,6 @@ class DezentralizedAdmittanceController():
         # self.manipulator_vel.linear.z *= -1
         self.manipulator_vel.linear.x *= -1
         self.manipulator_vel.linear.y *= -1
-
-        # print("Manipulator Velocity:")
-        #print("Linear Velocity: ", self.manipulator_vel.linear.x, self.manipulator_vel.linear.y, self.manipulator_vel.linear.z)
-
-        # publish manipulator velocity
-        self.manipulator_command_pub.publish(self.manipulator_vel)
-
 
     def compute_pose_error(self):
         # 

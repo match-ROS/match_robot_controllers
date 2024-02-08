@@ -29,7 +29,7 @@ class SetVirtualObjectPose():
     def config(self):
         self.TCP_pose_topic = rospy.get_param('~TCP_pose_topic', '/mur620a/UR10_l/global_tcp_pose')
         self.set_object_pose_topic = rospy.get_param('~set_object_pose_topic', '/virtual_object/set_pose')
-        self.relative_pose = rospy.get_param('~relative_pose', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self.relative_pose = rospy.get_param('~relative_pose', [-0.2, 0.0, 0.0, 0.0, 0.0, 0.0])
         
 
 
