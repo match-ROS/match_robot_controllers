@@ -26,7 +26,7 @@ class DezentralizedAdmittanceController():
         self.wrench_frame = rospy.get_param('wrench_frame','/mur620a/UR10_l/tool0')
         self.mir_pose_topic = rospy.get_param('mir_pose_topic','/mur620a/mir_pose_simple')
         self.manipulator_base_frame = rospy.get_param('manipulator_base_frame','mur620a/UR10_l/base_link')
-        self.relative_pose = rospy.get_param('relative_pose', [0.2,0.0,0,0,0,3.1415])
+        self.relative_pose = rospy.get_param('relative_pose', [0.0,0.0,0.2,0,0,3.1415])
         self.admittance = rospy.get_param('admittance', [0.0,0.0,0.0,0.001,0.001,0.001])
         self.wrench_filter_alpha = rospy.get_param('wrench_filter_alpha', 0.01)
         self.position_error_gain = rospy.get_param('position_error_gain', [0.2,0.2,0.01,0.01,0.01,0.01])
@@ -111,15 +111,9 @@ class DezentralizedAdmittanceController():
 
     def compute_grasping_point_velocity_local(self):
         # compute the local grasping point velocity based on the object velocity and the relative pose
-        # self.grasping_point_velocity_local.linear.x = self.object_vel.linear.x + self.relative_pose[0] * self.object_vel.angular.z - self.relative_pose[1] * self.object_vel.angular.z + self.relative_pose[0] * self.object_vel.angular.y - self.relative_pose[2] * self.object_vel.angular.y
-        # self.grasping_point_velocity_local.linear.y = self.object_vel.linear.y - self.relative_pose[0] * self.object_vel.angular.z + self.relative_pose[1] * self.object_vel.angular.z + self.relative_pose[1] * self.object_vel.angular.x - self.relative_pose[2] * self.object_vel.angular.x
-        # self.grasping_point_velocity_local.linear.z = self.object_vel.linear.z + self.relative_pose[1] * self.object_vel.angular.y - self.relative_pose[0] * self.object_vel.angular.y + self.relative_pose[2] * self.object_vel.angular.x - self.relative_pose[1] * self.object_vel.angular.x
-        # self.grasping_point_velocity_local.angular.x = self.object_vel.angular.x
-        # self.grasping_point_velocity_local.angular.y = self.object_vel.angular.y
-        # self.grasping_point_velocity_local.angular.z = self.object_vel.angular.z
-        self.grasping_point_velocity_local.linear.x = self.object_vel.linear.x + self.relative_pose[0] * self.object_vel.angular.y - self.relative_pose[1] * self.object_vel.angular.z
-        self.grasping_point_velocity_local.linear.y = self.object_vel.linear.y + self.relative_pose[0] * self.object_vel.angular.z + self.relative_pose[1] * self.object_vel.angular.x
-        self.grasping_point_velocity_local.linear.z = self.object_vel.linear.z + self.relative_pose[0] * self.object_vel.angular.x - self.relative_pose[1] * self.object_vel.angular.y
+        self.grasping_point_velocity_local.linear.x = self.object_vel.linear.x + self.relative_pose[2] * self.object_vel.angular.y - self.relative_pose[1] * self.object_vel.angular.z
+        self.grasping_point_velocity_local.linear.y = self.object_vel.linear.y + self.relative_pose[0] * self.object_vel.angular.z - self.relative_pose[2] * self.object_vel.angular.x
+        self.grasping_point_velocity_local.linear.z = self.object_vel.linear.z - self.relative_pose[0] * self.object_vel.angular.y + self.relative_pose[1] * self.object_vel.angular.x
         self.grasping_point_velocity_local.angular.x = self.object_vel.angular.x
         self.grasping_point_velocity_local.angular.y = self.object_vel.angular.y
         self.grasping_point_velocity_local.angular.z = self.object_vel.angular.z
