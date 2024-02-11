@@ -154,18 +154,20 @@ class DezentralizedAdmittanceController():
         # transform grasping point velocity to global frame
         R = transformations.quaternion_matrix([self.object_pose.pose.orientation.x,self.object_pose.pose.orientation.y,self.object_pose.pose.orientation.z,self.object_pose.pose.orientation.w])
         R = transpose(R)
-        self.grasping_point_velocity_global.linear.x = R[0,0]*self.grasping_point_velocity_local.linear.x + R[0,1]*self.grasping_point_velocity_local.linear.y + R[0,2]*self.grasping_point_velocity_local.linear.z
-        self.grasping_point_velocity_global.linear.y = R[1,0]*self.grasping_point_velocity_local.linear.x + R[1,1]*self.grasping_point_velocity_local.linear.y + R[1,2]*self.grasping_point_velocity_local.linear.z
-        self.grasping_point_velocity_global.linear.z = R[2,0]*self.grasping_point_velocity_local.linear.x + R[2,1]*self.grasping_point_velocity_local.linear.y + R[2,2]*self.grasping_point_velocity_local.linear.z
+        self.grasping_point_velocity_global.linear.x = self.object_vel.linear.x + R[0,0]*self.grasping_point_velocity_local.linear.x + R[0,1]*self.grasping_point_velocity_local.linear.y + R[0,2]*self.grasping_point_velocity_local.linear.z
+        self.grasping_point_velocity_global.linear.y = self.object_vel.linear.y + R[1,0]*self.grasping_point_velocity_local.linear.x + R[1,1]*self.grasping_point_velocity_local.linear.y + R[1,2]*self.grasping_point_velocity_local.linear.z
+        self.grasping_point_velocity_global.linear.z = self.object_vel.linear.z + R[2,0]*self.grasping_point_velocity_local.linear.x + R[2,1]*self.grasping_point_velocity_local.linear.y + R[2,2]*self.grasping_point_velocity_local.linear.z
         self.grasping_point_velocity_global.angular.x = self.grasping_point_velocity_local.angular.x
         self.grasping_point_velocity_global.angular.y = self.grasping_point_velocity_local.angular.y
         self.grasping_point_velocity_global.angular.z = self.grasping_point_velocity_local.angular.z
 
+        print(self.grasping_point_velocity_local)
+
     def compute_grasping_point_velocity_local(self):
         # compute the local grasping point velocity based on the object velocity and the relative pose
-        self.grasping_point_velocity_local.linear.x = self.object_vel.linear.x + self.relative_pose[2] * self.object_vel.angular.y - self.relative_pose[1] * self.object_vel.angular.z
-        self.grasping_point_velocity_local.linear.y = self.object_vel.linear.y + self.relative_pose[0] * self.object_vel.angular.z - self.relative_pose[2] * self.object_vel.angular.x
-        self.grasping_point_velocity_local.linear.z = self.object_vel.linear.z - self.relative_pose[0] * self.object_vel.angular.y + self.relative_pose[1] * self.object_vel.angular.x
+        self.grasping_point_velocity_local.linear.x = self.relative_pose[2] * self.object_vel.angular.y - self.relative_pose[1] * self.object_vel.angular.z
+        self.grasping_point_velocity_local.linear.y = self.relative_pose[0] * self.object_vel.angular.z - self.relative_pose[2] * self.object_vel.angular.x
+        self.grasping_point_velocity_local.linear.z = self.relative_pose[1] * self.object_vel.angular.x - self.relative_pose[0] * self.object_vel.angular.y  
         self.grasping_point_velocity_local.angular.x = self.object_vel.angular.x
         self.grasping_point_velocity_local.angular.y = self.object_vel.angular.y
         self.grasping_point_velocity_local.angular.z = self.object_vel.angular.z
@@ -201,6 +203,7 @@ class DezentralizedAdmittanceController():
 
 
     def compute_manipulator_velocity(self):
+
         # compute manipulator velocity
         self.manipulator_vel.linear.x = self.grasping_point_velocity_manipulator.linear.x + self.equilibrium_position_offset.position.x * self.position_error_gain[0]
         self.manipulator_vel.linear.y = self.grasping_point_velocity_manipulator.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1]
