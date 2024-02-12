@@ -25,6 +25,7 @@ class DezentralizedAdmittanceController():
         self.wrench_topic = rospy.get_param('wrench_topic','/mur620a/UR10_l/wrench')
         self.wrench_frame = rospy.get_param('wrench_frame','/mur620a/UR10_l/tool0')
         self.mir_pose_topic = rospy.get_param('mir_pose_topic','/mur620a/mir_pose_simple')
+        self.mir_cmd_vel_topic = rospy.get_param('mir_cmd_vel_topic','/mur620a/cmd_vel')
         self.manipulator_base_frame = rospy.get_param('manipulator_base_frame','mur620a/UR10_l/base_link')
         self.relative_pose = rospy.get_param('relative_pose', [0.0,0.2,0.0,0,0,3.1415])
         self.admittance = rospy.get_param('admittance', [0.02,0.02,0.02,0.001,0.001,0.001])
@@ -55,6 +56,7 @@ class DezentralizedAdmittanceController():
         self.equilibrium_position_offset = Pose()
         self.grasping_point_velocity_local = Twist()
         self.grasping_point_velocity_global = Twist()
+        self.mir_induced_tcp_velocity = Twist()
         self.grasping_point_velocity_manipulator = Twist()
 
         # initialize broadcaster
@@ -68,6 +70,7 @@ class DezentralizedAdmittanceController():
         rospy.Subscriber(self.manipulator_vel_topic, Twist, self.manipulator_vel_cb)
         rospy.Subscriber(self.mir_pose_topic, Pose, self.mir_pose_cb)
         rospy.Subscriber(self.wrench_topic, WrenchStamped, self.wrench_cb)
+        rospy.Subscriber(self.mir_cmd_vel_topic, Twist, self.mir_cmd_vel_cb)
 
         # initialize publisher  
         self.manipulator_command_pub = rospy.Publisher(self.manipulator_command_topic, Twist, queue_size=10)
@@ -110,6 +113,8 @@ class DezentralizedAdmittanceController():
         self.compute_equilibrium_position_offset()
         # compute grapsing point velocity
         self.compute_grasping_point_velocity_local()
+        # compute mir induced TCP velocity
+        self.compute_mir_induced_tcp_velocity()
         # transform grasping point velocity to global frame
         self.transform_grasping_point_velocity_global()
         # transform grasping point velocity to manipulator frame
@@ -119,6 +124,17 @@ class DezentralizedAdmittanceController():
         self.compute_manipulator_velocity()
         # limit and publish manipulator velocity
         self.limit_and_publish_manipulator_velocity()
+
+    def compute_mir_induced_tcp_velocity(self):
+        # compute distance between mir and tcp
+        distance = math.sqrt((self.mir_pose.position.x - self.manipulator_pose.position.x)**2 + (self.mir_pose.position.y - self.manipulator_pose.position.y)**2)
+        # compute absolute mir induced tcp velocity
+        abs_mir_induced_tcp_velocity = self.mir_cmd_vel.angular.z * distance
+        
+        #rospy.loginfo(self.mir_pose)
+        #rospy.loginfo(self.manipulator_pose)
+        print("Distance: ", distance)
+        
 
     def limit_and_publish_manipulator_velocity(self):
         # limit manipulator velocity
@@ -160,8 +176,6 @@ class DezentralizedAdmittanceController():
         self.grasping_point_velocity_global.angular.x = self.grasping_point_velocity_local.angular.x
         self.grasping_point_velocity_global.angular.y = self.grasping_point_velocity_local.angular.y
         self.grasping_point_velocity_global.angular.z = self.grasping_point_velocity_local.angular.z
-
-        print(self.grasping_point_velocity_local)
 
     def compute_grasping_point_velocity_local(self):
         # compute the local grasping point velocity based on the object velocity and the relative pose
@@ -301,6 +315,9 @@ class DezentralizedAdmittanceController():
 
     def manipulator_vel_cb(self,data = Twist()):    
         self.manipulator_vel = data
+
+    def mir_cmd_vel_cb(self,data = Twist()):
+        self.mir_cmd_vel = data
         
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
