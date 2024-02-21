@@ -47,8 +47,8 @@ class DecentralizedLeaderFollowerController:
         self.relative_position = rospy.get_param("~relative_position", [0.0,0.0,0.0])
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
-        self.lin_acc_max = rospy.get_param("~lin_acc_max", 1.2) / 1000.0
-        self.ang_acc_max = rospy.get_param("~ang_acc_max", 1.3) / 1000.0
+        self.lin_acc_max = rospy.get_param("~lin_acc_max", 1.0) / 1000.0
+        self.ang_acc_max = rospy.get_param("~ang_acc_max", 1.0) / 1000.0
         self.lin_jerk_max = rospy.get_param("~lin_jerk_max", 0.3) / 1000.0
         self.ang_jerk_max = rospy.get_param("~ang_jerk_max", 0.3) / 1000.0
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
@@ -133,9 +133,9 @@ class DecentralizedLeaderFollowerController:
 
         # compute linear feedforward velocity
         if self.relative_position[0] != 0.0 and self.relative_position[1] != 0.0:
-            target_velocity.linear.x = self.target_velocity.linear.x + abs(math.sqrt((self.relative_position[0] - self.relative_position[0])**2  * self.target_velocity.angular.z**2))
+            target_velocity.linear.x = self.target_velocity.linear.x - self.relative_position[1]*self.target_velocity.angular.z + abs(self.relative_position[0]* self.target_velocity.angular.z)
         elif self.relative_position[0] == 0.0:
-            target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * -1 #self.psign(self.relative_position[1])  #self.nsign(self.target_velocity.angular.z)
+            target_velocity.linear.x = self.target_velocity.linear.x - self.relative_position[1]*self.target_velocity.angular.z  #self.psign(self.relative_position[1])  #self.nsign(self.target_velocity.angular.z)
         elif self.relative_position[1] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z) #* self.psign(self.relative_position[0])
 
