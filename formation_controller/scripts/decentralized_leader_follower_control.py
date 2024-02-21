@@ -216,7 +216,7 @@ class DecentralizedLeaderFollowerController:
             else:
                 backwards = False
 
-            u_v = target_velocity.linear.x * math.cos(e_phi) #+ self.Kp_x*e_local_x + self.Ki_x*self.e_x_integrated
+            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x + self.Ki_x*self.e_x_integrated
 
             # if the robot should drive backwards, the linear velocity should be negative
             # if self.drive_backwards == True:
