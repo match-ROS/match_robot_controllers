@@ -26,6 +26,12 @@ class DecentralizedLeaderFollowerController:
         self.target_pose_old = Pose()
         self.e_x_integrated = 0.0
         self.dphi_integrated = 0.0
+        self.uv_old = 0.0
+        self.uw_old = 0.0
+        self.duv_old = 0.0
+        self.duw_old = 0.0
+        self.acc_u_v_old = 0.0
+        self.acc_u_w_old = 0.0
 
     def config(self):
         self.leader_pose_topic = rospy.get_param("~leader_pose_topic", "/target_pose")
@@ -41,6 +47,10 @@ class DecentralizedLeaderFollowerController:
         self.relative_position = rospy.get_param("~relative_position", [0.0,0.0,0.0])
         self.lin_vel_max = rospy.get_param("~lin_vel_max", 0.2)
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
+        self.lin_acc_max = rospy.get_param("~lin_acc_max", 1.2) / 1000.0
+        self.ang_acc_max = rospy.get_param("~ang_acc_max", 1.3) / 1000.0
+        self.lin_jerk_max = rospy.get_param("~lin_jerk_max", 0.3) / 1000.0
+        self.ang_jerk_max = rospy.get_param("~ang_jerk_max", 0.3) / 1000.0
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
         self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 2.0)
         self.drive_backwards = rospy.get_param("~drive_backwards", False)
@@ -69,11 +79,10 @@ class DecentralizedLeaderFollowerController:
                 u_w = 0.0
                 rospy.loginfo("Waiting for target pose, actual pose and target velocity")
             
+
+
             # limit the velocities
-            if abs(u_v) > self.lin_vel_max:
-                u_v = self.lin_vel_max * u_v/abs(u_v)
-            if abs(u_w) > self.ang_vel_max:
-                u_w = self.ang_vel_max * u_w/abs(u_w)
+            u_v, u_w = self.limit_velocities(u_v, u_w)
             
             self.cmd_vel_output.linear.x = u_v
             self.cmd_vel_output.angular.z = u_w
@@ -124,7 +133,7 @@ class DecentralizedLeaderFollowerController:
 
         # compute linear feedforward velocity
         if self.relative_position[0] != 0.0 and self.relative_position[1] != 0.0:
-            target_velocity.linear.x = self.target_velocity.linear.x + abs(self.relative_position[0]* self.target_velocity.angular.z)
+            target_velocity.linear.x = self.target_velocity.linear.x + abs(math.sqrt((self.relative_position[0] - self.relative_position[0])**2  * self.target_velocity.angular.z**2))
         elif self.relative_position[0] == 0.0:
             target_velocity.linear.x = self.target_velocity.linear.x + self.relative_position[1]*self.target_velocity.angular.z * -1 #self.psign(self.relative_position[1])  #self.nsign(self.target_velocity.angular.z)
         elif self.relative_position[1] == 0.0:
@@ -207,7 +216,7 @@ class DecentralizedLeaderFollowerController:
             else:
                 backwards = False
 
-            u_v = target_velocity.linear.x * math.cos(e_phi) + self.Kp_x*e_local_x + self.Ki_x*self.e_x_integrated
+            u_v = target_velocity.linear.x * math.cos(e_phi) #+ self.Kp_x*e_local_x + self.Ki_x*self.e_x_integrated
 
             # if the robot should drive backwards, the linear velocity should be negative
             # if self.drive_backwards == True:
@@ -231,6 +240,46 @@ class DecentralizedLeaderFollowerController:
 
             return u_v, u_w
         
+    def limit_velocities(self, u_v, u_w):
+        # limit velocities
+        if abs(u_v) > self.lin_vel_max:
+            u_v = self.lin_vel_max * u_v/abs(u_v)
+        if abs(u_w) > self.ang_vel_max:
+            u_w = self.ang_vel_max * u_w/abs(u_w)
+
+        # compute accelerations
+        acc_u_v = u_v - self.uv_old
+        acc_u_w = u_w - self.uw_old
+
+        # limit accelerations
+        if abs(acc_u_v) > self.lin_acc_max:
+            acc_u_v = self.lin_acc_max * acc_u_v/abs(acc_u_v)
+        if abs(acc_u_w) > self.ang_acc_max:
+            acc_u_w = self.ang_acc_max * acc_u_w/abs(acc_u_w)
+
+        # compute jerks
+        jerk_u_v = acc_u_v - self.acc_u_v_old
+        jerk_u_w = acc_u_w - self.acc_u_w_old
+            
+        # limit jerk
+        if abs(jerk_u_v) > self.lin_jerk_max:
+            acc_u_v = self.acc_u_v_old + self.lin_jerk_max * jerk_u_v/abs(jerk_u_v)
+        if abs(jerk_u_w) > self.ang_jerk_max:
+            acc_u_w = self.acc_u_w_old + self.ang_jerk_max * jerk_u_w/abs(jerk_u_w)
+
+        # add jerk limited accelerations to the velocities
+        u_v = self.uv_old + acc_u_v
+        u_w = self.uw_old + acc_u_w
+   
+        # update old values
+        self.acc_u_v_old = acc_u_v
+        self.acc_u_w_old = acc_u_w
+        self.uv_old = u_v
+        self.uw_old = u_w
+
+        return u_v, u_w
+
+
     def target_pose_callback(self, msg):
         self.target_pose = msg.pose    
     
