@@ -49,8 +49,8 @@ class DecentralizedLeaderFollowerController:
         self.ang_vel_max = rospy.get_param("~ang_vel_max", 0.3)
         self.lin_acc_max = rospy.get_param("~lin_acc_max", 1.0) / 1000.0
         self.ang_acc_max = rospy.get_param("~ang_acc_max", 1.0) / 1000.0
-        self.lin_jerk_max = rospy.get_param("~lin_jerk_max", 0.3) / 1000.0
-        self.ang_jerk_max = rospy.get_param("~ang_jerk_max", 0.3) / 1000.0
+        self.lin_jerk_max = rospy.get_param("~lin_jerk_max", 0.2) / 1000.0
+        self.ang_jerk_max = rospy.get_param("~ang_jerk_max", 0.2) / 1000.0
         self.e_x_integrated_max = rospy.get_param("~e_x_integrated_max", 3.0)
         self.dphi_integrated_max = rospy.get_param("~dphi_integrated_max", 2.0)
         self.drive_backwards = rospy.get_param("~drive_backwards", False)
