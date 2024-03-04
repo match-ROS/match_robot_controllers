@@ -27,10 +27,12 @@ class DezentralizedAdmittanceController():
         self.mir_pose_topic = rospy.get_param('mir_pose_topic','/mur620a/mir_pose_simple')
         self.mir_cmd_vel_topic = rospy.get_param('mir_cmd_vel_topic','/mur620a/cmd_vel')
         self.manipulator_base_frame = rospy.get_param('manipulator_base_frame','mur620a/UR10_l/base_link')
-        self.relative_pose = rospy.get_param('relative_pose', [0.0,0.2,0.0,0,0,3.1415])
-        self.admittance = rospy.get_param('admittance', [0.02,0.02,0.02,0.001,0.001,0.001])
+        self.relative_pose = rospy.get_param('relative_pose', [0.0,0.2,0.0,0,0,0])
+        # self.admittance = rospy.get_param('admittance', [0.02,0.02,0.02,0.01,0.01,0.01])
+        self.admittance = rospy.get_param('admittance', [0.0,0.0,0.0,0.0,0.0,0.0])
         self.wrench_filter_alpha = rospy.get_param('wrench_filter_alpha', 0.01)
-        self.position_error_gain = rospy.get_param('position_error_gain', [0.3,0.3,0.1,0.01,0.01,0.01])
+        self.position_error_gain = rospy.get_param('position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
+        #self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.0,0.1,0.1,0.1])
         self.linear_velocity_limit = rospy.get_param('linear_velocity_limit', 0.1)
         self.angular_velocity_limit = rospy.get_param('angular_velocity_limit', 0.1)
         pass
@@ -58,6 +60,8 @@ class DezentralizedAdmittanceController():
         self.grasping_point_velocity_global = Twist()
         self.mir_induced_tcp_velocity = Twist()
         self.grasping_point_velocity_manipulator = Twist()
+        self.mir_cmd_vel = Twist()
+        self.last_command_time = rospy.Time.now()
 
         # initialize broadcaster
         self.br = TransformBroadcaster()
@@ -103,6 +107,8 @@ class DezentralizedAdmittanceController():
 
 
     def update(self):
+        # check if data is fresh
+        self.check_data_freshness()
         # compute target pose based on object pose and relative pose
         self.compute_target_pose()
         # compute pose error
@@ -130,10 +136,18 @@ class DezentralizedAdmittanceController():
         distance = math.sqrt((self.mir_pose.position.x - self.manipulator_pose.position.x)**2 + (self.mir_pose.position.y - self.manipulator_pose.position.y)**2)
         # compute absolute mir induced tcp velocity
         abs_mir_induced_tcp_velocity = self.mir_cmd_vel.angular.z * distance
+        # compute direction of mir induced tcp velocity
+        direction = math.atan2(self.mir_pose.position.y - self.manipulator_pose.position.y, self.mir_pose.position.x - self.manipulator_pose.position.x)
+        # compute mir induced tcp velocity
+        self.mir_induced_tcp_velocity.linear.x = abs_mir_induced_tcp_velocity * math.cos(direction) + self.mir_cmd_vel.linear.x
+        self.mir_induced_tcp_velocity.linear.y = abs_mir_induced_tcp_velocity * math.sin(direction)
+        self.mir_induced_tcp_velocity.linear.z = self.mir_cmd_vel.linear.z
+
+        #print("Mir Induced TCP Velocity: ", self.mir_induced_tcp_velocity.linear.x, self.mir_induced_tcp_velocity.linear.y)
         
         #rospy.loginfo(self.mir_pose)
         #rospy.loginfo(self.manipulator_pose)
-        print("Distance: ", distance)
+        #print("Distance: ", distance)
         
 
     def limit_and_publish_manipulator_velocity(self):
@@ -199,6 +213,9 @@ class DezentralizedAdmittanceController():
         self.equilibrium_position_offset.orientation.z = q[2]
         self.equilibrium_position_offset.orientation.w = q[3]
 
+        #phi, theta, psi = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
+        #print("Equilibrium Position Offset:" , phi, theta, psi)
+
         # print("Equilibrium Position Offset:", self.equilibrium_position_offset.position.x, self.equilibrium_position_offset.position.y, self.equilibrium_position_offset.position.z)
 
     def compute_admittance_position_offset(self):
@@ -219,17 +236,21 @@ class DezentralizedAdmittanceController():
     def compute_manipulator_velocity(self):
 
         # compute manipulator velocity
-        self.manipulator_vel.linear.x = self.grasping_point_velocity_manipulator.linear.x + self.equilibrium_position_offset.position.x * self.position_error_gain[0]
-        self.manipulator_vel.linear.y = self.grasping_point_velocity_manipulator.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1]
+        self.manipulator_vel.linear.x = self.grasping_point_velocity_manipulator.linear.x + self.equilibrium_position_offset.position.x * self.position_error_gain[0] + self.mir_induced_tcp_velocity.linear.x
+        self.manipulator_vel.linear.y = self.grasping_point_velocity_manipulator.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1] - self.mir_induced_tcp_velocity.linear.y
         self.manipulator_vel.linear.z = self.grasping_point_velocity_manipulator.linear.z + self.equilibrium_position_offset.position.z * self.position_error_gain[2]
         euler = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
         self.manipulator_vel.angular.x = self.object_vel.angular.x + euler[0] * self.position_error_gain[3] 
         self.manipulator_vel.angular.y = self.object_vel.angular.y + euler[1] * self.position_error_gain[4]
-        self.manipulator_vel.angular.z = self.object_vel.angular.z + euler[2] * self.position_error_gain[5]
+        self.manipulator_vel.angular.z = self.object_vel.angular.z + euler[2] * self.position_error_gain[5] + self.mir_induced_tcp_velocity.angular.z
+
+        #print("Manipulator Velocity: ", self.manipulator_vel.linear.x, self.manipulator_vel.linear.y, self.manipulator_vel.linear.z, self.manipulator_vel.angular.z)
 
         # self.manipulator_vel.linear.z *= -1
         self.manipulator_vel.linear.x *= -1
         self.manipulator_vel.linear.y *= -1
+        self.manipulator_vel.angular.y *= -1
+        self.manipulator_vel.angular.x *= -1
 
     def compute_pose_error(self):
         # 
@@ -249,20 +270,28 @@ class DezentralizedAdmittanceController():
         self.pose_error_global.orientation.z = q[2]
         self.pose_error_global.orientation.w = q[3]
 
+        phi, theta, psi = transformations.euler_from_quaternion([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w])
+        print("Pose Error:" , phi, theta, psi)
+
         # transform pose error to local frame using the mir pose
         R = transformations.quaternion_matrix([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w])
         R = transpose(R)
         self.pose_error_local.position.x = R[0,0]*self.pose_error_global.position.x + R[0,1]*self.pose_error_global.position.y 
         self.pose_error_local.position.y = R[1,0]*self.pose_error_global.position.x + R[1,1]*self.pose_error_global.position.y 
         self.pose_error_local.position.z = self.pose_error_global.position.z
-        q = transformations.quaternion_multiply([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w],
-                        transformations.quaternion_inverse([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w]))
-        self.pose_error_local.orientation.x = q[0]
-        self.pose_error_local.orientation.y = q[1]
-        self.pose_error_local.orientation.z = q[2]
-        self.pose_error_local.orientation.w = q[3]
+        # q = transformations.quaternion_multiply([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w],
+        #                 transformations.quaternion_inverse([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w]))
+        # self.pose_error_local.orientation.x = q[0]
+        # self.pose_error_local.orientation.y = q[1]
+        # self.pose_error_local.orientation.z = q[2]
+        # self.pose_error_local.orientation.w = q[3]
+        self.pose_error_local.orientation.x = self.pose_error_global.orientation.x
+        self.pose_error_local.orientation.y = self.pose_error_global.orientation.y
+        self.pose_error_local.orientation.z = self.pose_error_global.orientation.z
+        self.pose_error_local.orientation.w = self.pose_error_global.orientation.w
 
-
+        # phi, theta, psi = transformations.euler_from_quaternion([self.pose_error_local.orientation.x,self.pose_error_local.orientation.y,self.pose_error_local.orientation.z,self.pose_error_local.orientation.w])
+        # print("Pose Error:" , phi, theta, psi)
         # print("Pose Error:")
         # print("Position error global: ", self.pose_error_global.position.x, self.pose_error_global.position.y, self.pose_error_global.position.z)
         # print("Position error local: ", self.pose_error_local.position.x, self.pose_error_local.position.y, self.pose_error_local.position.z)
@@ -303,6 +332,9 @@ class DezentralizedAdmittanceController():
         self.wrench_average.torque.z = (1-self.wrench_filter_alpha)*self.wrench_average.torque.z + self.wrench_filter_alpha*wrench.torque.z
         return self.wrench_average
 
+    def check_data_freshness(self):
+        if rospy.Time.now() - self.last_command_time > rospy.Duration(0.1):
+            self.mir_cmd_vel = Twist()
 
     def object_pose_cb(self,data = PoseStamped()):
         self.object_pose = data
@@ -318,6 +350,7 @@ class DezentralizedAdmittanceController():
 
     def mir_cmd_vel_cb(self,data = Twist()):
         self.mir_cmd_vel = data
+        self.last_command_time = rospy.Time.now()
         
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
