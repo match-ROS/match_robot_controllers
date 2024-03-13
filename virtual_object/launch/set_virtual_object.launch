@@ -1,0 +1,17 @@
+<launch>
+
+  <arg name="TCP_pose_topic"         default="/mur620a/UR10_l/global_tcp_pose" />
+  <arg name="set_object_pose_topic"  default="/virtual_object/set_pose" />
+  <arg name="relative_pose"          default="[0.0, -0.2, 0.0, 0.0, 0.0, 0.0]" />
+
+  <group ns="virtual_object">
+    <!-- <rosparam file="$(find virtual_object)/config/virtual_object.yaml" command="load" /> -->
+
+    <node name="set_virtual_object_pose" pkg="virtual_object" type="set_virtual_object_pose.py" output="screen">
+      <param name="TCP_pose_topic" type="string" value="$(arg TCP_pose_topic)"/>
+      <param name="set_object_pose_topic" type="string" value="$(arg set_object_pose_topic)"/>
+      <rosparam param="relative_pose" subst_value="True">$(arg relative_pose) </rosparam>
+    </node>
+  </group>
+
+</launch>
