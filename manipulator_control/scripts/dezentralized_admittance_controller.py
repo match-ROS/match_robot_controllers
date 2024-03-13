@@ -16,25 +16,26 @@ from numpy import transpose
 class DezentralizedAdmittanceController():
 
     def config(self):
-        self.rate = rospy.get_param('rate', 100.0)
-        self.object_pose_topic = rospy.get_param('object_pose_topic','/virtual_object/object_pose')
-        self.object_vel_topic = rospy.get_param('object_vel_topic','/virtual_object/object_vel')
-        self.manipulator_global_pose_topic = rospy.get_param('manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
-        self.manipulator_vel_topic = rospy.get_param('manipulator_vel_topic','manipulator_vel')
-        self.manipulator_command_topic = rospy.get_param('manipulator_command_topic','/mur620a/UR10_l/twist_controller/command_safe')
-        self.wrench_topic = rospy.get_param('wrench_topic','/mur620a/UR10_l/wrench')
-        self.wrench_frame = rospy.get_param('wrench_frame','/mur620a/UR10_l/tool0')
-        self.mir_pose_topic = rospy.get_param('mir_pose_topic','/mur620a/mir_pose_simple')
-        self.mir_cmd_vel_topic = rospy.get_param('mir_cmd_vel_topic','/mur620a/cmd_vel')
-        self.manipulator_base_frame = rospy.get_param('manipulator_base_frame','mur620a/UR10_l/base_link')
-        self.relative_pose = rospy.get_param('relative_pose', [0.0,0.2,0.0,0,0,0])
+        self.rate = rospy.get_param('~rate', 100.0)
+        self.object_pose_topic = rospy.get_param('~object_pose_topic','/virtual_object/object_pose')
+        self.object_vel_topic = rospy.get_param('~object_vel_topic','/virtual_object/object_vel')
+        self.manipulator_global_pose_topic = rospy.get_param('~manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
+        self.manipulator_vel_topic = rospy.get_param('~manipulator_vel_topic','manipulator_vel')
+        self.manipulator_command_topic = rospy.get_param('~manipulator_command_topic','/mur620a/UR10_l/twist_controller/command_safe')
+        self.wrench_topic = rospy.get_param('~wrench_topic','/mur620a/UR10_l/wrench')
+        self.wrench_frame = rospy.get_param('~wrench_frame','/mur620a/UR10_l/tool0')
+        self.mir_pose_topic = rospy.get_param('~mir_pose_topic','/mur620a/mir_pose_simple')
+        self.mir_cmd_vel_topic = rospy.get_param('~mir_cmd_vel_topic','/mur620a/cmd_vel')
+        self.manipulator_base_frame = rospy.get_param('~manipulator_base_frame','mur620a/UR10_l/base_link')
+        self.mir_base_frame = rospy.get_param('~mir_base_frame','mur620a/base_link')
+        self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.2,0.0,0,0,0])
         # self.admittance = rospy.get_param('admittance', [0.02,0.02,0.02,0.01,0.01,0.01])
-        self.admittance = rospy.get_param('admittance', [0.0,0.0,0.0,0.0,0.0,0.0])
-        self.wrench_filter_alpha = rospy.get_param('wrench_filter_alpha', 0.01)
-        self.position_error_gain = rospy.get_param('position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
-        #self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.0,0.1,0.1,0.1])
-        self.linear_velocity_limit = rospy.get_param('linear_velocity_limit', 0.1)
-        self.angular_velocity_limit = rospy.get_param('angular_velocity_limit', 0.1)
+        self.admittance = rospy.get_param('~admittance', [0.0,0.0,0.0,0.0,0.0,0.0])
+        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.01)
+        #self.position_error_gain = rospy.get_param('~position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
+        self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.0,0.1,0.1,0.1])
+        self.linear_velocity_limit = rospy.get_param('~linear_velocity_limit', 0.1)
+        self.angular_velocity_limit = rospy.get_param('~angular_velocity_limit', 0.1)
         pass
 
 
@@ -99,6 +100,9 @@ class DezentralizedAdmittanceController():
         rospy.loginfo("Waiting for transform from wrench frame to manipulator base frame")
         self.tl.waitForTransform(self.manipulator_base_frame, self.wrench_frame, rospy.Time(0), rospy.Duration(5.0))
         rospy.loginfo("Got transform from wrench frame to manipulator base frame")
+
+        # get pose offset from mir to manipulator
+        self.get_manipulator_pose_offset()
 
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
@@ -169,8 +173,16 @@ class DezentralizedAdmittanceController():
         self.manipulator_command_pub.publish(self.manipulator_vel)
 
     def transform_grasping_point_velocity_manipulator(self):
+        # the robot frame is always turned 180 degrees around the z axis
+        q = transformations.quaternion_from_euler(0,0,math.pi)
+        mir_ur_q = transformations.quaternion_multiply([self.manipulator_base_pose_offset.orientation.x,self.manipulator_base_pose_offset.orientation.y,self.manipulator_base_pose_offset.orientation.z,self.manipulator_base_pose_offset.orientation.w],q)
+
+        # add this transformation to the map / mir transformation
+        q_map_mir_ur = transformations.quaternion_multiply([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w],mir_ur_q)
+
         # transform grasping point velocity to manipulator frame
-        R = transformations.quaternion_matrix([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w])
+        # R = transformations.quaternion_matrix([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w])
+        R = transformations.quaternion_matrix(q_map_mir_ur)
         R = transpose(R)
         self.grasping_point_velocity_manipulator.linear.x = R[0,0]*self.grasping_point_velocity_global.linear.x + R[0,1]*self.grasping_point_velocity_global.linear.y + R[0,2]*self.grasping_point_velocity_global.linear.z
         self.grasping_point_velocity_manipulator.linear.y = R[1,0]*self.grasping_point_velocity_global.linear.x + R[1,1]*self.grasping_point_velocity_global.linear.y + R[1,2]*self.grasping_point_velocity_global.linear.z
@@ -178,6 +190,8 @@ class DezentralizedAdmittanceController():
         self.grasping_point_velocity_manipulator.angular.x = self.grasping_point_velocity_global.angular.x
         self.grasping_point_velocity_manipulator.angular.y = self.grasping_point_velocity_global.angular.y
         self.grasping_point_velocity_manipulator.angular.z = self.grasping_point_velocity_global.angular.z
+
+        print("Grasping Point Velocity: ", self.grasping_point_velocity_manipulator.linear.x, self.grasping_point_velocity_manipulator.linear.y, self.grasping_point_velocity_manipulator.linear.z)
         
 
     def transform_grasping_point_velocity_global(self):
@@ -191,6 +205,8 @@ class DezentralizedAdmittanceController():
         self.grasping_point_velocity_global.angular.y = self.grasping_point_velocity_local.angular.y
         self.grasping_point_velocity_global.angular.z = self.grasping_point_velocity_local.angular.z
 
+        #print("Grasping Point Velocity: ", self.grasping_point_velocity_global.linear.x, self.grasping_point_velocity_global.linear.y, self.grasping_point_velocity_global.linear.z)
+
     def compute_grasping_point_velocity_local(self):
         # compute the local grasping point velocity based on the object velocity and the relative pose
         self.grasping_point_velocity_local.linear.x = self.relative_pose[2] * self.object_vel.angular.y - self.relative_pose[1] * self.object_vel.angular.z
@@ -200,7 +216,7 @@ class DezentralizedAdmittanceController():
         self.grasping_point_velocity_local.angular.y = self.object_vel.angular.y
         self.grasping_point_velocity_local.angular.z = self.object_vel.angular.z
 
-        #print("Grasping Point Velocity: ", self.grasping_point_velocity_local.linear.x, self.grasping_point_velocity_local.linear.y, self.grasping_point_velocity_local.linear.z)
+        # print("Grasping Point Velocity: ", self.grasping_point_velocity_local.linear.x, self.grasping_point_velocity_local.linear.y, self.grasping_point_velocity_local.linear.z)
 
     def compute_equilibrium_position_offset(self):
         self.equilibrium_position_offset.position.x = self.pose_error_local.position.x + self.admittance_position_offset.position.x
@@ -271,7 +287,7 @@ class DezentralizedAdmittanceController():
         self.pose_error_global.orientation.w = q[3]
 
         phi, theta, psi = transformations.euler_from_quaternion([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w])
-        print("Pose Error:" , phi, theta, psi)
+        # print("Pose Error:" , phi, theta, psi)
 
         # transform pose error to local frame using the mir pose
         R = transformations.quaternion_matrix([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w])
@@ -323,6 +339,30 @@ class DezentralizedAdmittanceController():
                     "target_pose",
                     "map")
         
+
+    def get_manipulator_pose_offset(self):
+        try:
+            now = rospy.Time.now()
+            self.tl.waitForTransform(self.mir_base_frame, self.manipulator_base_frame, now, rospy.Duration(5.0))
+            trans, rot = self.tl.lookupTransform(self.mir_base_frame, self.manipulator_base_frame, now)
+            self.manipulator_base_pose_offset = Pose()
+            self.manipulator_base_pose_offset.position.x = trans[0]
+            self.manipulator_base_pose_offset.position.y = trans[1]
+            self.manipulator_base_pose_offset.position.z = trans[2]
+            q = transformations.quaternion_from_euler(rot[0],rot[1],rot[2])
+            self.manipulator_base_pose_offset.orientation.x = q[0]
+            self.manipulator_base_pose_offset.orientation.y = q[1]
+            self.manipulator_base_pose_offset.orientation.z = q[2]
+            self.manipulator_base_pose_offset.orientation.w = q[3]
+
+            print("Manipulator Base Pose Offset: ", self.manipulator_base_pose_offset)
+
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rospy.logwarn("Could not get transform from mir base frame to manipulator base frame")
+            return
+
+
+
     def filter_wrench(self,wrench = Wrench()):
         self.wrench_average.force.x = (1-self.wrench_filter_alpha)*self.wrench_average.force.x + self.wrench_filter_alpha*wrench.force.x
         self.wrench_average.force.y = (1-self.wrench_filter_alpha)*self.wrench_average.force.y + self.wrench_filter_alpha*wrench.force.y
@@ -350,8 +390,8 @@ class DezentralizedAdmittanceController():
 
     def mir_cmd_vel_cb(self,data = Twist()):
         self.mir_cmd_vel = data
-        self.last_command_time = rospy.Time.now()
-        
+        self.last_command_time = rospy.Time.now()   
+
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
         # get transform from wrench frame to manipulator base frame
