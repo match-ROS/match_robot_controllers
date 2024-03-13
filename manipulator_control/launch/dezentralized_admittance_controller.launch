@@ -18,7 +18,7 @@
 
 
 
-  <group ns="virtual_object">
+  <group ns="$(arg tf_prefix)/$(arg UR_prefix)">
     <!-- <rosparam file="$(find virtual_object)/config/virtual_object.yaml" command="load" /> -->
 
     <node name="dezentralized_admittance_controller" pkg="manipulator_control" type="dezentralized_admittance_controller.py" output="screen">
