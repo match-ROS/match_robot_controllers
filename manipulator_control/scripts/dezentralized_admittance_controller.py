@@ -28,6 +28,8 @@ class DezentralizedAdmittanceController():
         self.mir_cmd_vel_topic = rospy.get_param('~mir_cmd_vel_topic','/mur620a/cmd_vel')
         self.manipulator_base_frame = rospy.get_param('~manipulator_base_frame','mur620a/UR10_l/base_link')
         self.mir_base_frame = rospy.get_param('~mir_base_frame','mur620a/base_link')
+        self.ur_prefix = rospy.get_param('~ur_prefix','UR10_l')
+        self.tf_prefix = rospy.get_param('~tf_prefix','mur620a')
         self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.2,0.0,0,0,0])
         # self.admittance = rospy.get_param('admittance', [0.02,0.02,0.02,0.01,0.01,0.01])
         self.admittance = rospy.get_param('~admittance', [0.0,0.0,0.0,0.0,0.0,0.0])
@@ -348,7 +350,7 @@ class DezentralizedAdmittanceController():
         self.br.sendTransform((self.target_pose.pose.position.x,self.target_pose.pose.position.y,self.target_pose.pose.position.z),
                     (self.target_pose.pose.orientation.x,self.target_pose.pose.orientation.y,self.target_pose.pose.orientation.z,self.target_pose.pose.orientation.w),
                     rospy.Time.now(),
-                    "target_pose",
+                    self.tf_prefix+ "/" + self.ur_prefix + "/target_pose",
                     "map")
         
 

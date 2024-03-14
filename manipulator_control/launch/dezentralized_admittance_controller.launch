@@ -35,6 +35,8 @@
       <param name="mir_pose_topic" type="string" value="$(arg mir_pose_topic)"/>
       <param name="mir_cmd_vel_topic" type="string" value="$(arg mir_cmd_vel_topic)"/>
       <param name="manipulator_base_frame" type="string" value="$(arg manipulator_base_frame)"/>
+      <param name="ur_prefix" type="string" value="$(arg UR_prefix)"/>
+      <param name="tf_prefix" type="string" value="$(arg tf_prefix)"/>
     </node>
   </group>
 
