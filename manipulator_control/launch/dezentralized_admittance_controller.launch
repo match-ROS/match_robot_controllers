@@ -15,6 +15,7 @@
   <arg name="mir_pose_topic" default="/$(arg tf_prefix)/mir_pose_simple" />
   <arg name="mir_cmd_vel_topic" default="/$(arg tf_prefix)/cmd_vel" />
   <arg name="manipulator_base_frame" default="$(arg tf_prefix)/$(arg UR_prefix)/base_link" />
+  <arg name="mir_base_frame" default="$(arg tf_prefix)/base_link" />
 
 
 
@@ -36,7 +37,7 @@
       <param name="mir_cmd_vel_topic" type="string" value="$(arg mir_cmd_vel_topic)"/>
       <param name="manipulator_base_frame" type="string" value="$(arg manipulator_base_frame)"/>
       <param name="ur_prefix" type="string" value="$(arg UR_prefix)"/>
-      <param name="tf_prefix" type="string" value="$(arg tf_prefix)"/>
+      <param name="mir_base_frame" type="string" value="$(arg mir_base_frame)"/>
     </node>
   </group>
 
