@@ -237,8 +237,8 @@ class DezentralizedAdmittanceController():
         self.manipulator_vel.linear.y = self.grasping_point_velocity_manipulator.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1] - self.mir_induced_tcp_velocity.linear.y
         self.manipulator_vel.linear.z = self.grasping_point_velocity_manipulator.linear.z + self.equilibrium_position_offset.position.z * self.position_error_gain[2]
         euler = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
-        self.manipulator_vel.angular.x = -self.grasping_point_velocity_manipulator.angular.x + euler[0] * self.position_error_gain[3] 
-        self.manipulator_vel.angular.y = -self.grasping_point_velocity_manipulator.angular.y + euler[1] * self.position_error_gain[4]
+        self.manipulator_vel.angular.x = self.grasping_point_velocity_manipulator.angular.x + euler[0] * self.position_error_gain[3] 
+        self.manipulator_vel.angular.y = self.grasping_point_velocity_manipulator.angular.y + euler[1] * self.position_error_gain[4]
         self.manipulator_vel.angular.z = self.grasping_point_velocity_manipulator.angular.z + euler[2] * self.position_error_gain[5] + self.mir_induced_tcp_velocity.angular.z
 
         R = transformations.quaternion_matrix([self.manipulator_base_pose_offset.orientation.x,self.manipulator_base_pose_offset.orientation.y,self.manipulator_base_pose_offset.orientation.z,self.manipulator_base_pose_offset.orientation.w])
@@ -255,8 +255,8 @@ class DezentralizedAdmittanceController():
         self.manipulator_vel.linear.x = - vel_local.linear.x
         self.manipulator_vel.linear.y = - vel_local.linear.y
 
-        self.manipulator_vel.angular.x =  vel_local.angular.x
-        self.manipulator_vel.angular.y =  vel_local.angular.y
+        self.manipulator_vel.angular.x =  -vel_local.angular.x
+        self.manipulator_vel.angular.y =  -vel_local.angular.y
 
 
 
@@ -278,7 +278,7 @@ class DezentralizedAdmittanceController():
         self.pose_error_global.orientation.z = q[2]
         self.pose_error_global.orientation.w = q[3]
 
-        phi, theta, psi = transformations.euler_from_quaternion([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w])
+        #phi, theta, psi = transformations.euler_from_quaternion([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w])
 
         # transform pose error to local frame using the mir pose
         R = transformations.quaternion_matrix([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w])
