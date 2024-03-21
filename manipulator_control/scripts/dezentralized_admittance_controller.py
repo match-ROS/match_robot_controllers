@@ -237,8 +237,8 @@ class DezentralizedAdmittanceController():
         self.manipulator_vel.linear.y = self.grasping_point_velocity_manipulator.linear.y + self.equilibrium_position_offset.position.y * self.position_error_gain[1] - self.mir_induced_tcp_velocity.linear.y
         self.manipulator_vel.linear.z = self.grasping_point_velocity_manipulator.linear.z + self.equilibrium_position_offset.position.z * self.position_error_gain[2]
         euler = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
-        self.manipulator_vel.angular.x = self.grasping_point_velocity_manipulator.angular.x + euler[0] * self.position_error_gain[3] 
-        self.manipulator_vel.angular.y = self.grasping_point_velocity_manipulator.angular.y + euler[1] * self.position_error_gain[4]
+        self.manipulator_vel.angular.x = - self.grasping_point_velocity_manipulator.angular.x + euler[0] * self.position_error_gain[3] 
+        self.manipulator_vel.angular.y = - self.grasping_point_velocity_manipulator.angular.y + euler[1] * self.position_error_gain[4]
         self.manipulator_vel.angular.z = self.grasping_point_velocity_manipulator.angular.z + euler[2] * self.position_error_gain[5] + self.mir_induced_tcp_velocity.angular.z
 
         R = transformations.quaternion_matrix([self.manipulator_base_pose_offset.orientation.x,self.manipulator_base_pose_offset.orientation.y,self.manipulator_base_pose_offset.orientation.z,self.manipulator_base_pose_offset.orientation.w])
@@ -255,8 +255,8 @@ class DezentralizedAdmittanceController():
         self.manipulator_vel.linear.x = - vel_local.linear.x
         self.manipulator_vel.linear.y = - vel_local.linear.y
 
-        self.manipulator_vel.angular.x =  -vel_local.angular.x
-        self.manipulator_vel.angular.y =  -vel_local.angular.y
+        self.manipulator_vel.angular.x = - vel_local.angular.x
+        self.manipulator_vel.angular.y = - vel_local.angular.y
 
 
 
@@ -278,7 +278,8 @@ class DezentralizedAdmittanceController():
         self.pose_error_global.orientation.z = q[2]
         self.pose_error_global.orientation.w = q[3]
 
-        #phi, theta, psi = transformations.euler_from_quaternion([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w])
+        phi, theta, psi = transformations.euler_from_quaternion([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w])
+        # print("phi: " + str(phi) + " theta: " + str(theta) + " psi: " + str(psi))
 
         # transform pose error to local frame using the mir pose
         R = transformations.quaternion_matrix([self.mir_pose.orientation.x,self.mir_pose.orientation.y,self.mir_pose.orientation.z,self.mir_pose.orientation.w])
@@ -286,10 +287,17 @@ class DezentralizedAdmittanceController():
         self.pose_error_local.position.x = R[0,0]*self.pose_error_global.position.x + R[0,1]*self.pose_error_global.position.y 
         self.pose_error_local.position.y = R[1,0]*self.pose_error_global.position.x + R[1,1]*self.pose_error_global.position.y 
         self.pose_error_local.position.z = self.pose_error_global.position.z
-        self.pose_error_local.orientation.x = self.pose_error_global.orientation.x
-        self.pose_error_local.orientation.y = self.pose_error_global.orientation.y
-        self.pose_error_local.orientation.z = self.pose_error_global.orientation.z
-        self.pose_error_local.orientation.w = self.pose_error_global.orientation.w
+        global_pose_euler = transformations.euler_from_quaternion([self.pose_error_global.orientation.x,self.pose_error_global.orientation.y,self.pose_error_global.orientation.z,self.pose_error_global.orientation.w])
+        local_pose_euler = [0.0,0.0,0.0]
+        local_pose_euler[0] = global_pose_euler[0] * R[0,0] + global_pose_euler[1] * R[0,1] + global_pose_euler[2] * R[0,2]
+        local_pose_euler[1] = global_pose_euler[0] * R[1,0] + global_pose_euler[1] * R[1,1] + global_pose_euler[2] * R[1,2]
+        local_pose_euler[2] = global_pose_euler[0] * R[2,0] + global_pose_euler[1] * R[2,1] + global_pose_euler[2] * R[2,2]
+        q = transformations.quaternion_from_euler(local_pose_euler[0],local_pose_euler[1],local_pose_euler[2])
+
+        self.pose_error_local.orientation.x = q[0]
+        self.pose_error_local.orientation.y = q[1]
+        self.pose_error_local.orientation.z = q[2]
+        self.pose_error_local.orientation.w = q[3]
 
 
     def compute_target_pose(self):
@@ -310,19 +318,21 @@ class DezentralizedAdmittanceController():
         self.target_pose.pose.orientation.w = q[3]
         self.target_pose.header.stamp = rospy.Time.now()
         
-        #broadcast target pose
-        self.br.sendTransform((self.target_pose.pose.position.x,self.target_pose.pose.position.y,self.target_pose.pose.position.z),
-                    (self.target_pose.pose.orientation.x,self.target_pose.pose.orientation.y,self.target_pose.pose.orientation.z,self.target_pose.pose.orientation.w),
-                    rospy.Time.now(),
-                    self.tf_prefix+ "/" + self.ur_prefix + "/target_pose",
-                    "map")
-        
-        # broadcast current pose
-        self.br.sendTransform((self.manipulator_pose.position.x,self.manipulator_pose.position.y,self.manipulator_pose.position.z),
-                    (self.manipulator_pose.orientation.x,self.manipulator_pose.orientation.y,self.manipulator_pose.orientation.z,self.manipulator_pose.orientation.w),
-                    rospy.Time.now(),
-                    self.tf_prefix+ "/" + self.ur_prefix + "/current_pose",
-                    "map")
+        #limiting broadcast rate
+        if rospy.Time.now() - self.last_command_time > rospy.Duration(0.2):
+            #broadcast target pose
+            self.br.sendTransform((self.target_pose.pose.position.x,self.target_pose.pose.position.y,self.target_pose.pose.position.z),
+                        (self.target_pose.pose.orientation.x,self.target_pose.pose.orientation.y,self.target_pose.pose.orientation.z,self.target_pose.pose.orientation.w),
+                        rospy.Time.now(),
+                        self.tf_prefix+ "/" + self.ur_prefix + "/target_pose",
+                        "map")
+            
+            # broadcast current pose
+            self.br.sendTransform((self.manipulator_pose.position.x,self.manipulator_pose.position.y,self.manipulator_pose.position.z),
+                        (self.manipulator_pose.orientation.x,self.manipulator_pose.orientation.y,self.manipulator_pose.orientation.z,self.manipulator_pose.orientation.w),
+                        rospy.Time.now(),
+                        self.tf_prefix+ "/" + self.ur_prefix + "/current_pose",
+                        "map")
         
 
     def get_manipulator_pose_offset(self):
