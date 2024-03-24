@@ -31,12 +31,12 @@ class DezentralizedAdmittanceController():
         self.ur_prefix = rospy.get_param('~ur_prefix','UR10_l')
         self.tf_prefix = rospy.get_param('~tf_prefix','mur620a')
         self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.2,0.0,0,0,0])
-        #self.admittance = rospy.get_param('admittance', [0.003,0.003,0.02,0.01,0.01,0.01])
-        self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
+        self.admittance = rospy.get_param('admittance', [0.003,0.003,0.02,0.01,0.01,0.01])
+        #self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
         self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.01)
         #self.position_error_gain = rospy.get_param('~position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
-        #self.position_error_gain = rospy.get_param('position_error_gain', [0.5,0.5,0.5,0.4,0.4,0.4])
-        self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.0,0.0,0.0,0.0])
+        self.position_error_gain = rospy.get_param('position_error_gain', [0.5,0.5,0.5,0.4,0.4,0.4])
+        #self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.0,0.0,0.0,0.0])
         self.linear_velocity_limit = rospy.get_param('~linear_velocity_limit', 0.1)
         self.angular_velocity_limit = rospy.get_param('~angular_velocity_limit', 0.1)
         pass
@@ -388,6 +388,7 @@ class DezentralizedAdmittanceController():
 
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
+        wrench_out = Wrench()
         # get transform from wrench frame to manipulator base frame
         try:
             trans, rot = self.tl.lookupTransform(self.manipulator_base_frame, self.wrench_frame, rospy.Time(0))
@@ -395,18 +396,20 @@ class DezentralizedAdmittanceController():
             rospy.logwarn("Could not get transform from wrench frame to manipulator base frame")
             return
 
+        #print("raw wrench: " + str(wrench))
         # convert wrench to local frame
         R = transformations.quaternion_matrix(rot)
         R = transpose(R)
-        wrench.force.x = R[0,0]*wrench.force.x + R[0,1]*wrench.force.y + R[0,2]*wrench.force.z
-        wrench.force.y = R[1,0]*wrench.force.x + R[1,1]*wrench.force.y + R[1,2]*wrench.force.z
-        wrench.force.z = R[2,0]*wrench.force.x + R[2,1]*wrench.force.y + R[2,2]*wrench.force.z
-        wrench.torque.x = R[0,0]*wrench.torque.x + R[0,1]*wrench.torque.y + R[0,2]*wrench.torque.z
-        wrench.torque.y = R[1,0]*wrench.torque.x + R[1,1]*wrench.torque.y + R[1,2]*wrench.torque.z
-        wrench.torque.z = R[2,0]*wrench.torque.x + R[2,1]*wrench.torque.y + R[2,2]*wrench.torque.z
+        wrench_out.force.x = R[0,0]*wrench.force.x + R[0,1]*wrench.force.y + R[0,2]*wrench.force.z
+        wrench_out.force.y = R[1,0]*wrench.force.x + R[1,1]*wrench.force.y + R[1,2]*wrench.force.z
+        wrench_out.force.z = R[2,0]*wrench.force.x + R[2,1]*wrench.force.y + R[2,2]*wrench.force.z
+        wrench_out.torque.x = R[0,0]*wrench.torque.x + R[0,1]*wrench.torque.y + R[0,2]*wrench.torque.z
+        wrench_out.torque.y = R[1,0]*wrench.torque.x + R[1,1]*wrench.torque.y + R[1,2]*wrench.torque.z
+        wrench_out.torque.z = R[2,0]*wrench.torque.x + R[2,1]*wrench.torque.y + R[2,2]*wrench.torque.z
 
         # filter wrench
-        self.filtered_wrench = self.filter_wrench(wrench)
+        self.filtered_wrench = self.filter_wrench(wrench_out)
+        print(self.filtered_wrench)
 
     def mir_pose_cb(self,data = Pose()):
         self.mir_pose = data
