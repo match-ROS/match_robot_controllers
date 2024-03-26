@@ -8,10 +8,10 @@
   <arg name="object_pose_topic" default="/virtual_object/object_pose" />
   <arg name="object_vel_topic" default="/virtual_object/object_vel" />
   <arg name="manipulator_global_pose_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/global_tcp_pose" />
+  <arg name="manipulator_local_pose_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/ur_calibrated_pose" />
   <arg name="manipulator_vel_topic" default="manipulator_vel" />
   <arg name="manipulator_command_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/twist_controller/command" />
   <arg name="wrench_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/wrench" />
-  <arg name="wrench_frame" default="/$(arg tf_prefix)/$(arg UR_prefix)/tool0" />
   <arg name="mir_pose_topic" default="/$(arg tf_prefix)/mir_pose_simple" />
   <arg name="mir_cmd_vel_topic" default="/$(arg tf_prefix)/cmd_vel" />
   <arg name="manipulator_base_frame" default="$(arg tf_prefix)/$(arg UR_prefix)/base_link" />
@@ -29,10 +29,10 @@
       <param name="object_pose_topic" type="string" value="$(arg object_pose_topic)"/>
       <param name="object_vel_topic" type="string" value="$(arg object_vel_topic)"/>
       <param name="manipulator_global_pose_topic" type="string" value="$(arg manipulator_global_pose_topic)"/>
+      <param name="manipulator_local_pose_topic" type="string" value="$(arg manipulator_local_pose_topic)"/>
       <param name="manipulator_vel_topic" type="string" value="$(arg manipulator_vel_topic)"/>
       <param name="manipulator_command_topic" type="string" value="$(arg manipulator_command_topic)"/>
       <param name="wrench_topic" type="string" value="$(arg wrench_topic)"/>
-      <param name="wrench_frame" type="string" value="$(arg wrench_frame)"/>
       <param name="mir_pose_topic" type="string" value="$(arg mir_pose_topic)"/>
       <param name="mir_cmd_vel_topic" type="string" value="$(arg mir_cmd_vel_topic)"/>
       <param name="manipulator_base_frame" type="string" value="$(arg manipulator_base_frame)"/>

@@ -20,10 +20,10 @@ class DezentralizedAdmittanceController():
         self.object_pose_topic = rospy.get_param('~object_pose_topic','/virtual_object/object_pose')
         self.object_vel_topic = rospy.get_param('~object_vel_topic','/virtual_object/object_vel')
         self.manipulator_global_pose_topic = rospy.get_param('~manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
+        self.manipulator_local_pose_topic = rospy.get_param('~manipulator_local_pose_topic','/mur620a/UR10_l/ur_calibrated_pose')
         self.manipulator_vel_topic = rospy.get_param('~manipulator_vel_topic','manipulator_vel')
         self.manipulator_command_topic = rospy.get_param('~manipulator_command_topic','/mur620a/UR10_l/twist_controller/command_safe')
         self.wrench_topic = rospy.get_param('~wrench_topic','/mur620a/UR10_l/wrench')
-        self.wrench_frame = rospy.get_param('~wrench_frame','/mur620a/UR10_l/tool0')
         self.mir_pose_topic = rospy.get_param('~mir_pose_topic','/mur620a/mir_pose_simple')
         self.mir_cmd_vel_topic = rospy.get_param('~mir_cmd_vel_topic','/mur620a/cmd_vel')
         self.manipulator_base_frame = rospy.get_param('~manipulator_base_frame','mur620a/UR10_l/base_link')
@@ -31,12 +31,12 @@ class DezentralizedAdmittanceController():
         self.ur_prefix = rospy.get_param('~ur_prefix','UR10_l')
         self.tf_prefix = rospy.get_param('~tf_prefix','mur620a')
         self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.2,0.0,0,0,0])
-        self.admittance = rospy.get_param('admittance', [0.003,0.003,0.02,0.01,0.01,0.01])
+        self.admittance = rospy.get_param('admittance', [0.003,0.003,0.001,0.0,0.0,0.0])
         #self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
         self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.01)
         #self.position_error_gain = rospy.get_param('~position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
         self.position_error_gain = rospy.get_param('position_error_gain', [0.5,0.5,0.5,0.4,0.4,0.4])
-        #self.position_error_gain = rospy.get_param('position_error_gain', [0.0,0.0,0.0,0.0,0.0,0.0])
+        #self.position_error_gain = rospy.get_param('position_error_gain', [0.1,0.1,0.1,0.0,0.0,0.0])
         self.linear_velocity_limit = rospy.get_param('~linear_velocity_limit', 0.1)
         self.angular_velocity_limit = rospy.get_param('~angular_velocity_limit', 0.1)
         pass
@@ -74,7 +74,8 @@ class DezentralizedAdmittanceController():
         # start subscribers
         rospy.Subscriber(self.object_pose_topic, PoseStamped, self.object_pose_cb)
         rospy.Subscriber(self.object_vel_topic, Twist, self.object_vel_cb)
-        rospy.Subscriber(self.manipulator_global_pose_topic, PoseStamped, self.manipulator_pose_cb)
+        rospy.Subscriber(self.manipulator_global_pose_topic, PoseStamped, self.manipulator_global_pose_cb)
+        rospy.Subscriber(self.manipulator_local_pose_topic, PoseStamped, self.manipulator_local_pose_cb)
         rospy.Subscriber(self.manipulator_vel_topic, Twist, self.manipulator_vel_cb)
         rospy.Subscriber(self.mir_pose_topic, Pose, self.mir_pose_cb)
         rospy.Subscriber(self.wrench_topic, WrenchStamped, self.wrench_cb)
@@ -101,7 +102,6 @@ class DezentralizedAdmittanceController():
         rospy.loginfo("First messages received")
 
         rospy.loginfo("Waiting for transform from wrench frame to manipulator base frame")
-        self.tl.waitForTransform(self.manipulator_base_frame, self.wrench_frame, rospy.Time(0), rospy.Duration(5.0))
         rospy.loginfo("Got transform from wrench frame to manipulator base frame")
 
         # get pose offset from mir to manipulator
@@ -215,6 +215,11 @@ class DezentralizedAdmittanceController():
         self.equilibrium_position_offset.orientation.z = q[2]
         self.equilibrium_position_offset.orientation.w = q[3]
 
+        roll, pitch, yaw = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
+        #print("roll: " + str(roll) + " pitch: " + str(pitch) + " yaw: " + str(yaw))
+
+
+
     def compute_admittance_position_offset(self):
         # compute equilibrium position based on wrench error and admittance
         self.admittance_position_offset.position.x = self.filtered_wrench.force.x * self.admittance[0]
@@ -228,6 +233,8 @@ class DezentralizedAdmittanceController():
         self.admittance_position_offset.orientation.y = q[1]
         self.admittance_position_offset.orientation.z = q[2]
         self.admittance_position_offset.orientation.w = q[3]
+        self.admittance_rpy = [rx,ry,rz]
+        #print(rx,ry,rz)
 
 
     def compute_manipulator_velocity(self):
@@ -376,8 +383,11 @@ class DezentralizedAdmittanceController():
     def object_vel_cb(self,data = Twist()):
         self.object_vel = data
 
-    def manipulator_pose_cb(self,data = PoseStamped()):
+    def manipulator_global_pose_cb(self,data = PoseStamped()):
         self.manipulator_pose = data.pose
+
+    def manipulator_local_pose_cb(self,data = PoseStamped()):
+        self.manipulator_local_pose = data.pose
 
     def manipulator_vel_cb(self,data = Twist()):    
         self.manipulator_vel = data
@@ -389,14 +399,11 @@ class DezentralizedAdmittanceController():
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
         wrench_out = Wrench()
-        # get transform from wrench frame to manipulator base frame
-        try:
-            trans, rot = self.tl.lookupTransform(self.manipulator_base_frame, self.wrench_frame, rospy.Time(0))
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            rospy.logwarn("Could not get transform from wrench frame to manipulator base frame")
-            return
+        # get wrench orientation from local pose frame
+        # turn the orientation of the manipulator by 180 degrees around the z axis
+        q_rot = transformations.quaternion_from_euler(0,0,math.pi)
+        rot = transformations.quaternion_multiply([self.manipulator_local_pose.orientation.x,self.manipulator_local_pose.orientation.y,self.manipulator_local_pose.orientation.z,self.manipulator_local_pose.orientation.w],q_rot)
 
-        #print("raw wrench: " + str(wrench))
         # convert wrench to local frame
         R = transformations.quaternion_matrix(rot)
         R = transpose(R)
@@ -407,9 +414,14 @@ class DezentralizedAdmittanceController():
         wrench_out.torque.y = R[1,0]*wrench.torque.x + R[1,1]*wrench.torque.y + R[1,2]*wrench.torque.z
         wrench_out.torque.z = R[2,0]*wrench.torque.x + R[2,1]*wrench.torque.y + R[2,2]*wrench.torque.z
 
+        #TODO fix this later!
+        if self.ur_prefix == 'UR10_r':
+            wrench_out.force.x = -wrench_out.force.x
+            wrench_out.force.y = -wrench_out.force.y
+            #wrench_out.torque.z = -wrench_out.torque.z
+
         # filter wrench
         self.filtered_wrench = self.filter_wrench(wrench_out)
-        print(self.filtered_wrench)
 
     def mir_pose_cb(self,data = Pose()):
         self.mir_pose = data
