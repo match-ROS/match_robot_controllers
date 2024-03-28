@@ -31,9 +31,9 @@ class DezentralizedAdmittanceController():
         self.ur_prefix = rospy.get_param('~ur_prefix','UR10_l')
         self.tf_prefix = rospy.get_param('~tf_prefix','mur620a')
         self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.2,0.0,0,0,0])
-        self.admittance = rospy.get_param('admittance', [0.003,0.003,0.001,0.0,0.0,0.0])
+        self.admittance = rospy.get_param('admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
         #self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
-        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.01)
+        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.02)
         #self.position_error_gain = rospy.get_param('~position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
         self.position_error_gain = rospy.get_param('position_error_gain', [0.5,0.5,0.5,0.4,0.4,0.4])
         #self.position_error_gain = rospy.get_param('position_error_gain', [0.1,0.1,0.1,0.0,0.0,0.0])
@@ -422,6 +422,7 @@ class DezentralizedAdmittanceController():
 
         # filter wrench
         self.filtered_wrench = self.filter_wrench(wrench_out)
+        #print("filtered wrench: ", self.filtered_wrench)
 
     def mir_pose_cb(self,data = Pose()):
         self.mir_pose = data
