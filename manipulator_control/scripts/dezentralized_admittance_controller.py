@@ -28,17 +28,18 @@ class DezentralizedAdmittanceController():
         self.mir_cmd_vel_topic = rospy.get_param('~mir_cmd_vel_topic','/mur620a/cmd_vel')
         self.manipulator_base_frame = rospy.get_param('~manipulator_base_frame','mur620a/UR10_l/base_link')
         self.mir_base_frame = rospy.get_param('~mir_base_frame','mur620a/base_link')
+        self.relative_pose_topic = rospy.get_param('~relative_pose_topic','/mur620a/UR10_l/relative_pose')
         self.ur_prefix = rospy.get_param('~ur_prefix','UR10_l')
         self.tf_prefix = rospy.get_param('~tf_prefix','mur620a')
-        self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.2,0.0,0,0,0])
-        self.admittance = rospy.get_param('admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
+        self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.5,0.0,0,0,0])
+        self.admittance = rospy.get_param('~admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
         #self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
-        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.02)
+        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.0015)
         #self.position_error_gain = rospy.get_param('~position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
         self.position_error_gain = rospy.get_param('position_error_gain', [0.5,0.5,0.5,0.4,0.4,0.4])
         #self.position_error_gain = rospy.get_param('position_error_gain', [0.1,0.1,0.1,0.0,0.0,0.0])
-        self.linear_velocity_limit = rospy.get_param('~linear_velocity_limit', 0.1)
-        self.angular_velocity_limit = rospy.get_param('~angular_velocity_limit', 0.1)
+        self.linear_velocity_limit = rospy.get_param('~linear_velocity_limit', 0.2)
+        self.angular_velocity_limit = rospy.get_param('~angular_velocity_limit', 0.2)
         pass
 
 
@@ -80,6 +81,7 @@ class DezentralizedAdmittanceController():
         rospy.Subscriber(self.mir_pose_topic, Pose, self.mir_pose_cb)
         rospy.Subscriber(self.wrench_topic, WrenchStamped, self.wrench_cb)
         rospy.Subscriber(self.mir_cmd_vel_topic, Twist, self.mir_cmd_vel_cb)
+        rospy.Subscriber(self.relative_pose_topic, PoseStamped, self.relative_pose_cb)
 
         # initialize publisher  
         self.manipulator_command_pub = rospy.Publisher(self.manipulator_command_topic, Twist, queue_size=10)
@@ -343,9 +345,16 @@ class DezentralizedAdmittanceController():
         
 
     def get_manipulator_pose_offset(self):
+        while not rospy.is_shutdown():
+            try:
+                now = rospy.Time.now()
+                self.tl.waitForTransform(self.mir_base_frame, self.manipulator_base_frame, now, rospy.Duration(1.0))
+                break
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                rospy.logwarn("Could not get transform from mir base frame to manipulator base frame")
+                continue
+        
         try:
-            now = rospy.Time.now()
-            self.tl.waitForTransform(self.mir_base_frame, self.manipulator_base_frame, now, rospy.Duration(5.0))
             trans, rot = self.tl.lookupTransform(self.mir_base_frame, self.manipulator_base_frame, now)
 
             self.manipulator_base_pose_offset = Pose()
@@ -396,6 +405,10 @@ class DezentralizedAdmittanceController():
         self.mir_cmd_vel = data
         self.last_command_time = rospy.Time.now()   
 
+    def relative_pose_cb(self,data = PoseStamped()):
+        euler = transformations.euler_from_quaternion([data.pose.orientation.x,data.pose.orientation.y,data.pose.orientation.z,data.pose.orientation.w])
+        self.relative_pose = [data.pose.position.x,data.pose.position.y,data.pose.position.z,euler[0],euler[1],euler[2]]
+
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
         wrench_out = Wrench()
@@ -418,6 +431,9 @@ class DezentralizedAdmittanceController():
         if self.ur_prefix == 'UR10_r':
             wrench_out.force.x = -wrench_out.force.x
             wrench_out.force.y = -wrench_out.force.y
+            wrench_out.torque.x = -wrench_out.torque.x
+            wrench_out.torque.y = -wrench_out.torque.y
+
             #wrench_out.torque.z = -wrench_out.torque.z
 
         # filter wrench
