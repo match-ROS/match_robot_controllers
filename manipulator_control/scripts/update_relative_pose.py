@@ -43,7 +43,7 @@ class UpdateRelativePose:
         self.relative_pose.pose.orientation.w = q_diff[3]
 
         self.relative_pose_pub.publish(self.relative_pose)
-        rospy.sleep(1)
+        rospy.sleep(1.1)
          
         # log relative pose
         rospy.loginfo('Relative pose updated')

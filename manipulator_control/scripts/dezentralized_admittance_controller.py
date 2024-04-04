@@ -10,13 +10,15 @@ import tf
 from geometry_msgs.msg import WrenchStamped, Wrench
 import math
 from numpy import transpose
+from copy import deepcopy
+import numpy as np
 
 
 
 class DezentralizedAdmittanceController():
 
     def config(self):
-        self.rate = rospy.get_param('~rate', 100.0)
+        self.rate = rospy.get_param('~rate', 200.0)
         self.object_pose_topic = rospy.get_param('~object_pose_topic','/virtual_object/object_pose')
         self.object_vel_topic = rospy.get_param('~object_vel_topic','/virtual_object/object_vel')
         self.manipulator_global_pose_topic = rospy.get_param('~manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
@@ -34,7 +36,8 @@ class DezentralizedAdmittanceController():
         self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.5,0.0,0,0,0])
         self.admittance = rospy.get_param('~admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
         #self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
-        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.0015)
+        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.05)
+        self.floating_average_window_size = rospy.get_param('~floating_average_window_size', 2000)
         #self.position_error_gain = rospy.get_param('~position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
         self.position_error_gain = rospy.get_param('position_error_gain', [0.5,0.5,0.5,0.4,0.4,0.4])
         #self.position_error_gain = rospy.get_param('position_error_gain', [0.1,0.1,0.1,0.0,0.0,0.0])
@@ -67,11 +70,16 @@ class DezentralizedAdmittanceController():
         self.grasping_point_velocity_manipulator = Twist()
         self.mir_cmd_vel = Twist()
         self.last_command_time = rospy.Time.now()
+        self.old_wrench_msgs = np.zeros((self.floating_average_window_size,6))
 
         # initialize broadcaster
         self.br = TransformBroadcaster()
         self.tl = TransformListener()
         
+        # initialize publisher  
+        self.manipulator_command_pub = rospy.Publisher(self.manipulator_command_topic, Twist, queue_size=10)
+        rospy.sleep(1)
+
         # start subscribers
         rospy.Subscriber(self.object_pose_topic, PoseStamped, self.object_pose_cb)
         rospy.Subscriber(self.object_vel_topic, Twist, self.object_vel_cb)
@@ -82,9 +90,9 @@ class DezentralizedAdmittanceController():
         rospy.Subscriber(self.wrench_topic, WrenchStamped, self.wrench_cb)
         rospy.Subscriber(self.mir_cmd_vel_topic, Twist, self.mir_cmd_vel_cb)
         rospy.Subscriber(self.relative_pose_topic, PoseStamped, self.relative_pose_cb)
+        rospy.loginfo("Subscribers started" + self.relative_pose_topic)
 
-        # initialize publisher  
-        self.manipulator_command_pub = rospy.Publisher(self.manipulator_command_topic, Twist, queue_size=10)
+
         
 
     def run(self):
@@ -379,8 +387,7 @@ class DezentralizedAdmittanceController():
         self.wrench_average.force.z = (1-self.wrench_filter_alpha)*self.wrench_average.force.z + self.wrench_filter_alpha*wrench.force.z
         self.wrench_average.torque.x = (1-self.wrench_filter_alpha)*self.wrench_average.torque.x + self.wrench_filter_alpha*wrench.torque.x
         self.wrench_average.torque.y = (1-self.wrench_filter_alpha)*self.wrench_average.torque.y + self.wrench_filter_alpha*wrench.torque.y
-        self.wrench_average.torque.z = (1-self.wrench_filter_alpha)*self.wrench_average.torque.z + self.wrench_filter_alpha*wrench.torque.z
-        return self.wrench_average
+        self.wrench_average.torque.z = (1-self.wrench_filter_alpha)*self.wrench_average.torque.z + self.wrench_filter_alpha*wrench.torque.z       
 
     def check_data_freshness(self):
         if rospy.Time.now() - self.last_command_time > rospy.Duration(0.1):
@@ -434,11 +441,9 @@ class DezentralizedAdmittanceController():
             wrench_out.torque.x = -wrench_out.torque.x
             wrench_out.torque.y = -wrench_out.torque.y
 
-            #wrench_out.torque.z = -wrench_out.torque.z
-
         # filter wrench
-        self.filtered_wrench = self.filter_wrench(wrench_out)
-        #print("filtered wrench: ", self.filtered_wrench)
+        self.filter_wrench(wrench_out)
+        self.filtered_wrench = deepcopy(self.wrench_average)
 
     def mir_pose_cb(self,data = Pose()):
         self.mir_pose = data

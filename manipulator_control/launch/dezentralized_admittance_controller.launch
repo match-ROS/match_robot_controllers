@@ -4,7 +4,7 @@
   <arg name="UR_prefix"  default="UR10_l" />
   <arg name="relative_pose"          default="[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]" />
   <!-- <arg name="admittance" default="[0.01,0.01,0.001,0.1,0.1,0.1]" /> -->
-  <arg name="admittance" default="[0.01,0.01,0.001,0.0,0.0,0.0]" />
+  <arg name="admittance" default="[0.002,0.002,0.002,0.01,0.01,0.01]" />
   
   <arg name="object_pose_topic" default="/virtual_object/object_pose" />
   <arg name="object_vel_topic" default="/virtual_object/object_vel" />
@@ -17,7 +17,7 @@
   <arg name="mir_cmd_vel_topic" default="/$(arg tf_prefix)/cmd_vel" />
   <arg name="manipulator_base_frame" default="$(arg tf_prefix)/$(arg UR_prefix)/base_link" />
   <arg name="mir_base_frame" default="$(arg tf_prefix)/base_link" />
-  <arg name="relative_pose_topic" default="$(arg tf_prefix)/$(arg UR_prefix)/relative_pose" />
+  <arg name="relative_pose_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/relative_pose" />
 
 
 
