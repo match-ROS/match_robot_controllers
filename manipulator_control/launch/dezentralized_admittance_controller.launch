@@ -4,7 +4,7 @@
   <arg name="UR_prefix"  default="UR10_l" />
   <arg name="relative_pose"          default="[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]" />
   <!-- <arg name="admittance" default="[0.01,0.01,0.001,0.1,0.1,0.1]" /> -->
-  <arg name="admittance" default="[0.002,0.002,0.002,0.01,0.01,0.01]" />
+  <arg name="admittance" default="[0.001,0.001,0.001,0.0,0.0,0.0]" />
   
   <arg name="object_pose_topic" default="/virtual_object/object_pose" />
   <arg name="object_vel_topic" default="/virtual_object/object_vel" />

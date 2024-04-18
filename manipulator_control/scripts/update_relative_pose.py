@@ -6,6 +6,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from tf import transformations
+from numpy import transpose
 
 class UpdateRelativePose:
     def config(self):
@@ -24,6 +25,7 @@ class UpdateRelativePose:
         self.config()
 
         self.relative_pose_pub = rospy.Publisher(self.relative_pose_topic, PoseStamped, queue_size=1)
+        rospy.sleep(1) # wait for publisher to be registered
 
         self.update_relative_pose()
 
@@ -42,15 +44,31 @@ class UpdateRelativePose:
         self.relative_pose.pose.orientation.z = q_diff[2]
         self.relative_pose.pose.orientation.w = q_diff[3]
 
-        self.relative_pose_pub.publish(self.relative_pose)
-        rospy.sleep(1.1)
+        # convert relative pose to object frame
+        relative_pose_transformed = PoseStamped()
+        relative_pose_transformed.header.frame_id = object_pose.header.frame_id
+        R = transformations.quaternion_matrix([object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w])
+        R = transpose(R)
+        relative_pose_transformed.pose.position.x = self.relative_pose.pose.position.x * R[0,0] + self.relative_pose.pose.position.y * R[0,1] + self.relative_pose.pose.position.z * R[0,2]
+        relative_pose_transformed.pose.position.y = self.relative_pose.pose.position.x * R[1,0] + self.relative_pose.pose.position.y * R[1,1] + self.relative_pose.pose.position.z * R[1,2]
+        relative_pose_transformed.pose.position.z = self.relative_pose.pose.position.x * R[2,0] + self.relative_pose.pose.position.y * R[2,1] + self.relative_pose.pose.position.z * R[2,2]
+        q = transformations.quaternion_multiply(
+            [object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w],
+            [self.relative_pose.pose.orientation.x, self.relative_pose.pose.orientation.y, self.relative_pose.pose.orientation.z, self.relative_pose.pose.orientation.w])
+        relative_pose_transformed.pose.orientation.x = q[0]
+        relative_pose_transformed.pose.orientation.y = q[1]
+        relative_pose_transformed.pose.orientation.z = q[2]
+        relative_pose_transformed.pose.orientation.w = q[3]
+
+        self.relative_pose_pub.publish(relative_pose_transformed)
+        rospy.sleep(0.1)
          
         # log relative pose
         rospy.loginfo('Relative pose updated')
         rospy.loginfo('relative_pose: ' + str(self.relative_pose.pose.position.x) + ', ' + str(self.relative_pose.pose.position.y) + ', ' + str(self.relative_pose.pose.position.z) + ', ' + str(self.relative_pose.pose.orientation.x) + ', ' + str(self.relative_pose.pose.orientation.y) + ', ' + str(self.relative_pose.pose.orientation.z) + ', ' + str(self.relative_pose.pose.orientation.w))
 
         # shutdown the node
-        rospy.signal_shutdown('Relative pose updated')
+        #rospy.signal_shutdown('Relative pose updated')
 
 
 if __name__ == '__main__':

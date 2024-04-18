@@ -319,10 +319,10 @@ class DezentralizedAdmittanceController():
         self.pose_error_local.orientation.w = q[3]
 
         if self.set_reference_at_runtime and self.reference_set == False:
-            self.admittance = [0.004,0.004,0.004,0.0,0.0,0.0] # make the robot easier to move while no reference is set
+            self.admittance = [0.002,0.002,0.002,0.0,0.0,0.0] # make the robot easier to move while no reference is set
             self.pose_error_local = Pose()
             self.pose_error_local.orientation.w = 1.0
-            rospy.logwarn_throttle(5,"Reference not set, ignoring pose error")
+            rospy.logwarn_throttle(3,"Reference not set, ignoring pose error")
 
 
     def compute_target_pose(self):
@@ -426,6 +426,7 @@ class DezentralizedAdmittanceController():
         if self.reference_set == False:
             self.reference_set = True
             self.admittance = rospy.get_param('~admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
+            rospy.loginfo("Reference set")
 
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
