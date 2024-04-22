@@ -36,14 +36,6 @@ class UpdateRelativePose:
         self.relative_pose.pose.position.y = TCP_pose.pose.position.y - object_pose.pose.position.y
         self.relative_pose.pose.position.z = TCP_pose.pose.position.z - object_pose.pose.position.z
 
-        q_diff = transformations.quaternion_multiply(
-            [TCP_pose.pose.orientation.x, TCP_pose.pose.orientation.y, TCP_pose.pose.orientation.z, TCP_pose.pose.orientation.w],
-            transformations.quaternion_inverse([object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w]))
-        self.relative_pose.pose.orientation.x = q_diff[0]
-        self.relative_pose.pose.orientation.y = q_diff[1]
-        self.relative_pose.pose.orientation.z = q_diff[2]
-        self.relative_pose.pose.orientation.w = q_diff[3]
-
         # convert relative pose to object frame
         relative_pose_transformed = PoseStamped()
         relative_pose_transformed.header.frame_id = object_pose.header.frame_id
@@ -52,13 +44,22 @@ class UpdateRelativePose:
         relative_pose_transformed.pose.position.x = self.relative_pose.pose.position.x * R[0,0] + self.relative_pose.pose.position.y * R[0,1] + self.relative_pose.pose.position.z * R[0,2]
         relative_pose_transformed.pose.position.y = self.relative_pose.pose.position.x * R[1,0] + self.relative_pose.pose.position.y * R[1,1] + self.relative_pose.pose.position.z * R[1,2]
         relative_pose_transformed.pose.position.z = self.relative_pose.pose.position.x * R[2,0] + self.relative_pose.pose.position.y * R[2,1] + self.relative_pose.pose.position.z * R[2,2]
-        q = transformations.quaternion_multiply(
-            [object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w],
-            [self.relative_pose.pose.orientation.x, self.relative_pose.pose.orientation.y, self.relative_pose.pose.orientation.z, self.relative_pose.pose.orientation.w])
-        relative_pose_transformed.pose.orientation.x = q[0]
-        relative_pose_transformed.pose.orientation.y = q[1]
-        relative_pose_transformed.pose.orientation.z = q[2]
-        relative_pose_transformed.pose.orientation.w = q[3]
+
+        # compute the angle between the virtual object and the TCP
+        q_diff = transformations.quaternion_multiply([object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w], transformations.quaternion_inverse([TCP_pose.pose.orientation.x, TCP_pose.pose.orientation.y, TCP_pose.pose.orientation.z, TCP_pose.pose.orientation.w]))
+        q_diff = transformations.quaternion_inverse(q_diff)
+        # q_diff = transformations.quaternion_multiply(transformations.quaternion_inverse([object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w]), [TCP_pose.pose.orientation.x, TCP_pose.pose.orientation.y, TCP_pose.pose.orientation.z, TCP_pose.pose.orientation.w])
+        # q_diff = transformations.quaternion_inverse(q_diff)
+        # invert the quaternion
+        q = transformations.quaternion_multiply(q_diff, [object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w])
+        #q = transformations.quaternion_multiply(q_diff, transformations.quaternion_inverse([object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w]))
+        q_inv = q
+        relative_pose_transformed.pose.orientation.x = q_inv[0]
+        relative_pose_transformed.pose.orientation.y = q_inv[1]
+        relative_pose_transformed.pose.orientation.z = q_inv[2]
+        relative_pose_transformed.pose.orientation.w = q_inv[3]
+
+
 
         self.relative_pose_pub.publish(relative_pose_transformed)
         rospy.sleep(0.1)
@@ -68,10 +69,10 @@ class UpdateRelativePose:
         rospy.loginfo('relative_pose: ' + str(self.relative_pose.pose.position.x) + ', ' + str(self.relative_pose.pose.position.y) + ', ' + str(self.relative_pose.pose.position.z) + ', ' + str(self.relative_pose.pose.orientation.x) + ', ' + str(self.relative_pose.pose.orientation.y) + ', ' + str(self.relative_pose.pose.orientation.z) + ', ' + str(self.relative_pose.pose.orientation.w))
 
         # shutdown the node
-        #rospy.signal_shutdown('Relative pose updated')
+        rospy.signal_shutdown('Relative pose updated')
 
 
 if __name__ == '__main__':
     rospy.init_node('update_relative_pose')
     UpdateRelativePose()
-    rospy.spin()
+    #rospy.spin()

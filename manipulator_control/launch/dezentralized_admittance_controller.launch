@@ -4,14 +4,14 @@
   <arg name="UR_prefix"  default="UR10_l" />
   <arg name="relative_pose"          default="[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]" />
   <!-- <arg name="admittance" default="[0.01,0.01,0.001,0.1,0.1,0.1]" /> -->
-  <arg name="admittance" default="[0.001,0.001,0.001,0.0,0.0,0.0]" />
+  <arg name="admittance" default="[0.000,0.000,0.000,0.0,0.0,0.0]" />
   
   <arg name="object_pose_topic" default="/virtual_object/object_pose" />
   <arg name="object_vel_topic" default="/virtual_object/object_vel" />
   <arg name="manipulator_global_pose_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/global_tcp_pose" />
   <arg name="manipulator_local_pose_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/ur_calibrated_pose" />
   <arg name="manipulator_vel_topic" default="manipulator_vel" />
-  <arg name="manipulator_command_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/twist_controller/command" />
+  <arg name="manipulator_command_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/twist_controller/command_collision_free" />
   <arg name="wrench_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/wrench" />
   <arg name="mir_pose_topic" default="/$(arg tf_prefix)/mir_pose_simple" />
   <arg name="mir_cmd_vel_topic" default="/$(arg tf_prefix)/cmd_vel" />

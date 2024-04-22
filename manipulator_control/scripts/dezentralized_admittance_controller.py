@@ -18,7 +18,7 @@ import numpy as np
 class DezentralizedAdmittanceController():
 
     def config(self):
-        self.rate = rospy.get_param('~rate', 200.0)
+        self.rate = rospy.get_param('~rate', 100.0)
         self.object_pose_topic = rospy.get_param('~object_pose_topic','/virtual_object/object_pose')
         self.object_vel_topic = rospy.get_param('~object_vel_topic','/virtual_object/object_vel')
         self.manipulator_global_pose_topic = rospy.get_param('~manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
@@ -73,6 +73,7 @@ class DezentralizedAdmittanceController():
         self.last_command_time = rospy.Time.now()
         self.old_wrench_msgs = np.zeros((self.floating_average_window_size,6))
         self.reference_set = False
+        self.last_broadcast_time = rospy.Time.now()
 
         # initialize broadcaster
         self.br = TransformBroadcaster()
@@ -344,7 +345,7 @@ class DezentralizedAdmittanceController():
         self.target_pose.header.stamp = rospy.Time.now()
         
         #limiting broadcast rate
-        if rospy.Time.now() - self.last_command_time > rospy.Duration(0.2):
+        if rospy.Time.now() - self.last_broadcast_time > rospy.Duration(0.2):
             #broadcast target pose
             self.br.sendTransform((self.target_pose.pose.position.x,self.target_pose.pose.position.y,self.target_pose.pose.position.z),
                         (self.target_pose.pose.orientation.x,self.target_pose.pose.orientation.y,self.target_pose.pose.orientation.z,self.target_pose.pose.orientation.w),
@@ -358,6 +359,7 @@ class DezentralizedAdmittanceController():
                         rospy.Time.now(),
                         self.tf_prefix+ "/" + self.ur_prefix + "/current_pose",
                         "map")
+            self.last_broadcast_time = rospy.Time.now()
         
 
     def get_manipulator_pose_offset(self):
