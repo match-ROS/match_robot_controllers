@@ -18,7 +18,7 @@ import numpy as np
 class DezentralizedAdmittanceController():
 
     def config(self):
-        self.rate = rospy.get_param('~rate', 100.0)
+        self.rate = rospy.get_param('~rate', 150.0)
         self.object_pose_topic = rospy.get_param('~object_pose_topic','/virtual_object/object_pose')
         self.object_vel_topic = rospy.get_param('~object_vel_topic','/virtual_object/object_vel')
         self.manipulator_global_pose_topic = rospy.get_param('~manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
@@ -36,14 +36,14 @@ class DezentralizedAdmittanceController():
         self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.5,0.0,0,0,0])
         self.admittance = rospy.get_param('~admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
         #self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
-        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.05)
+        self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.07)
         self.floating_average_window_size = rospy.get_param('~floating_average_window_size', 2000)
         #self.position_error_gain = rospy.get_param('~position_error_gain', [0.3,0.3,0.3,0.1,0.1,0.1])
         self.position_error_gain = rospy.get_param('position_error_gain', [0.5,0.5,0.5,0.4,0.4,0.4])
         #self.position_error_gain = rospy.get_param('position_error_gain', [0.1,0.1,0.1,0.0,0.0,0.0])
         self.linear_velocity_limit = rospy.get_param('~linear_velocity_limit', 0.2)
         self.angular_velocity_limit = rospy.get_param('~angular_velocity_limit', 0.2)
-        self.set_reference_at_runtime = rospy.get_param('~set_reference_at_runtime', True)
+        self.set_reference_at_runtime = rospy.get_param('~set_reference_at_runtime', False)
         pass
 
 
@@ -183,6 +183,8 @@ class DezentralizedAdmittanceController():
         # publish manipulator velocity
         self.manipulator_command_pub.publish(self.manipulator_vel)
 
+        rospy.loginfo_throttle(1,self.manipulator_vel)
+
     def transform_grasping_point_velocity_manipulator(self):
         
         # transform grasping point velocity to manipulator frame
@@ -320,7 +322,7 @@ class DezentralizedAdmittanceController():
         self.pose_error_local.orientation.w = q[3]
 
         if self.set_reference_at_runtime and self.reference_set == False:
-            self.admittance = [0.002,0.002,0.002,0.0,0.0,0.0] # make the robot easier to move while no reference is set
+            self.admittance = [0.001,0.001,0.001,0.0,0.0,0.0] # make the robot easier to move while no reference is set
             self.pose_error_local = Pose()
             self.pose_error_local.orientation.w = 1.0
             rospy.logwarn_throttle(3,"Reference not set, ignoring pose error")
@@ -427,7 +429,7 @@ class DezentralizedAdmittanceController():
         self.relative_pose = [data.pose.position.x,data.pose.position.y,data.pose.position.z,euler[0],euler[1],euler[2]]
         if self.reference_set == False:
             self.reference_set = True
-            self.admittance = rospy.get_param('~admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
+            self.admittance = rospy.get_param('~admittance', [0.0005,0.0005,0.001,0.0,0.0,0.01])
             rospy.loginfo("Reference set")
 
     def wrench_cb(self,data = WrenchStamped()):
