@@ -18,7 +18,7 @@ import numpy as np
 class DezentralizedAdmittanceController():
 
     def config(self):
-        self.rate = rospy.get_param('~rate', 150.0)
+        self.rate = rospy.get_param('~rate', 250.0)
         self.object_pose_topic = rospy.get_param('~object_pose_topic','/virtual_object/object_pose')
         self.object_vel_topic = rospy.get_param('~object_vel_topic','/virtual_object/object_vel')
         self.manipulator_global_pose_topic = rospy.get_param('~manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
@@ -80,7 +80,7 @@ class DezentralizedAdmittanceController():
         self.tl = TransformListener()
         
         # initialize publisher  
-        self.manipulator_command_pub = rospy.Publisher(self.manipulator_command_topic, Twist, queue_size=10)
+        self.manipulator_command_pub = rospy.Publisher(self.manipulator_command_topic, Twist, queue_size=1)
         rospy.sleep(1)
 
         # start subscribers
@@ -183,8 +183,6 @@ class DezentralizedAdmittanceController():
         # publish manipulator velocity
         self.manipulator_command_pub.publish(self.manipulator_vel)
 
-        rospy.loginfo_throttle(1,self.manipulator_vel)
-
     def transform_grasping_point_velocity_manipulator(self):
         
         # transform grasping point velocity to manipulator frame
@@ -230,11 +228,6 @@ class DezentralizedAdmittanceController():
         self.equilibrium_position_offset.orientation.z = q[2]
         self.equilibrium_position_offset.orientation.w = q[3]
 
-        roll, pitch, yaw = transformations.euler_from_quaternion([self.equilibrium_position_offset.orientation.x,self.equilibrium_position_offset.orientation.y,self.equilibrium_position_offset.orientation.z,self.equilibrium_position_offset.orientation.w])
-        #print("roll: " + str(roll) + " pitch: " + str(pitch) + " yaw: " + str(yaw))
-
-
-
     def compute_admittance_position_offset(self):
         # compute equilibrium position based on wrench error and admittance
         self.admittance_position_offset.position.x = self.filtered_wrench.force.x * self.admittance[0]
@@ -249,7 +242,6 @@ class DezentralizedAdmittanceController():
         self.admittance_position_offset.orientation.z = q[2]
         self.admittance_position_offset.orientation.w = q[3]
         self.admittance_rpy = [rx,ry,rz]
-        #print(rx,ry,rz)
 
 
     def compute_manipulator_velocity(self):
@@ -279,8 +271,6 @@ class DezentralizedAdmittanceController():
 
         self.manipulator_vel.angular.x = - vel_local.angular.x
         self.manipulator_vel.angular.y = - vel_local.angular.y
-
-
 
     def compute_pose_error(self):
         # 
