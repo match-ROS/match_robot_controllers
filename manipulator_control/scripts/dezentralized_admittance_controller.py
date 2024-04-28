@@ -44,6 +44,8 @@ class DezentralizedAdmittanceController():
         self.linear_velocity_limit = rospy.get_param('~linear_velocity_limit', 0.2)
         self.angular_velocity_limit = rospy.get_param('~angular_velocity_limit', 0.2)
         self.set_reference_at_runtime = rospy.get_param('~set_reference_at_runtime', False)
+        self.free_drive_admittance = rospy.get_param('~free_drive_admittance', [0.001,0.001,0.001,0.0,0.0,0.0])
+        self.external_localization = rospy.get_param('~external_localization', True)
         pass
 
 
@@ -266,11 +268,18 @@ class DezentralizedAdmittanceController():
         vel_local.angular.y = R[1,0]*self.manipulator_vel.angular.x + R[1,1]*self.manipulator_vel.angular.y + R[1,2]*self.manipulator_vel.angular.z
         vel_local.angular.z = R[2,0]*self.manipulator_vel.angular.x + R[2,1]*self.manipulator_vel.angular.y + R[2,2]*self.manipulator_vel.angular.z
 
-        self.manipulator_vel.linear.x = - vel_local.linear.x
-        self.manipulator_vel.linear.y = - vel_local.linear.y
+        if self.external_localization:
+            self.manipulator_vel.linear.x =  vel_local.linear.x
+            self.manipulator_vel.linear.y =  vel_local.linear.y
 
-        self.manipulator_vel.angular.x = - vel_local.angular.x
-        self.manipulator_vel.angular.y = - vel_local.angular.y
+            self.manipulator_vel.angular.x =  vel_local.angular.x
+            self.manipulator_vel.angular.y =  vel_local.angular.y
+        else:
+            self.manipulator_vel.linear.x =  -vel_local.linear.x
+            self.manipulator_vel.linear.y =  -vel_local.linear.y
+
+            self.manipulator_vel.angular.x =  -vel_local.angular.x
+            self.manipulator_vel.angular.y =  -vel_local.angular.y
 
     def compute_pose_error(self):
         # 
@@ -311,8 +320,10 @@ class DezentralizedAdmittanceController():
         self.pose_error_local.orientation.z = q[2]
         self.pose_error_local.orientation.w = q[3]
 
+        #print(self.pose_error_local)
+
         if self.set_reference_at_runtime and self.reference_set == False:
-            self.admittance = [0.001,0.001,0.001,0.0,0.0,0.0] # make the robot easier to move while no reference is set
+            self.admittance = self.free_drive_admittance # make the robot easier to move while no reference is set
             self.pose_error_local = Pose()
             self.pose_error_local.orientation.w = 1.0
             rospy.logwarn_throttle(3,"Reference not set, ignoring pose error")
@@ -440,7 +451,12 @@ class DezentralizedAdmittanceController():
         wrench_out.torque.y = R[1,0]*wrench.torque.x + R[1,1]*wrench.torque.y + R[1,2]*wrench.torque.z
         wrench_out.torque.z = R[2,0]*wrench.torque.x + R[2,1]*wrench.torque.y + R[2,2]*wrench.torque.z
 
-        #TODO fix this later!
+        #TODO fix this later! - double inversion is intentional
+        if self.external_localization:
+            wrench_out.force.x = -wrench_out.force.x
+            wrench_out.force.y = -wrench_out.force.y
+            wrench_out.torque.x = -wrench_out.torque.x
+            wrench_out.torque.y = -wrench_out.torque.y
         if self.ur_prefix == 'UR10_r':
             wrench_out.force.x = -wrench_out.force.x
             wrench_out.force.y = -wrench_out.force.y
