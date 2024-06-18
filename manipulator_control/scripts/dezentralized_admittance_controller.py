@@ -18,7 +18,7 @@ import numpy as np
 class DezentralizedAdmittanceController():
 
     def config(self):
-        self.rate = rospy.get_param('~rate', 250.0)
+        self.rate = rospy.get_param('~rate', 200.0)
         self.object_pose_topic = rospy.get_param('~object_pose_topic','/virtual_object/object_pose')
         self.object_vel_topic = rospy.get_param('~object_vel_topic','/virtual_object/object_vel')
         self.manipulator_global_pose_topic = rospy.get_param('~manipulator_global_pose_topic','/mur620a/UR10_l/global_tcp_pose')
