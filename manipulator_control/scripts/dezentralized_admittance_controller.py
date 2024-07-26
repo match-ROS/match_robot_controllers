@@ -26,6 +26,7 @@ class DezentralizedAdmittanceController():
         self.manipulator_vel_topic = rospy.get_param('~manipulator_vel_topic','manipulator_vel')
         self.manipulator_command_topic = rospy.get_param('~manipulator_command_topic','/mur620a/UR10_l/twist_controller/command_safe')
         self.wrench_topic = rospy.get_param('~wrench_topic','/mur620a/UR10_l/wrench')
+        self.target_wrench_topic = rospy.get_param('~target_wrench_topic','/mur620a/UR10_l/target_wrench')
         self.mir_pose_topic = rospy.get_param('~mir_pose_topic','/mur620a/mir_pose_simple')
         self.mir_cmd_vel_topic = rospy.get_param('~mir_cmd_vel_topic','/mur620a/cmd_vel')
         self.manipulator_base_frame = rospy.get_param('~manipulator_base_frame','mur620a/UR10_l/base_link')
@@ -46,6 +47,7 @@ class DezentralizedAdmittanceController():
         self.set_reference_at_runtime = rospy.get_param('~set_reference_at_runtime', False)
         self.free_drive_admittance = rospy.get_param('~free_drive_admittance', [0.001,0.001,0.001,0.0,0.0,0.0])
         self.external_localization = rospy.get_param('~external_localization', True)
+        self.force_control_mode = rospy.get_param('~force_control_mode', False)
         pass
 
 
@@ -65,6 +67,7 @@ class DezentralizedAdmittanceController():
         self.pose_error_global = Pose()
         self.pose_error_local = Pose()
         self.wrench_average = Wrench()
+        self.target_wrench = Wrench()
         self.admittance_position_offset = Pose()
         self.equilibrium_position_offset = Pose()
         self.grasping_point_velocity_local = Twist()
@@ -95,6 +98,7 @@ class DezentralizedAdmittanceController():
         rospy.Subscriber(self.wrench_topic, WrenchStamped, self.wrench_cb)
         rospy.Subscriber(self.mir_cmd_vel_topic, Twist, self.mir_cmd_vel_cb)
         rospy.Subscriber(self.relative_pose_topic, PoseStamped, self.relative_pose_cb)
+        rospy.Subscriber(self.target_wrench_topic, WrenchStamped, self.target_wrench_cb)
         rospy.loginfo("Subscribers started" + self.relative_pose_topic)
 
 
@@ -232,12 +236,12 @@ class DezentralizedAdmittanceController():
 
     def compute_admittance_position_offset(self):
         # compute equilibrium position based on wrench error and admittance
-        self.admittance_position_offset.position.x = self.filtered_wrench.force.x * self.admittance[0]
-        self.admittance_position_offset.position.y = self.filtered_wrench.force.y * self.admittance[1]
-        self.admittance_position_offset.position.z = self.filtered_wrench.force.z * self.admittance[2]
-        rx = self.filtered_wrench.torque.x * self.admittance[3]
-        ry = self.filtered_wrench.torque.y * self.admittance[4]
-        rz = self.filtered_wrench.torque.z * self.admittance[5]
+        self.admittance_position_offset.position.x = (self.filtered_wrench.force.x - self.target_wrench.force.x)  * self.admittance[0]
+        self.admittance_position_offset.position.y = (self.filtered_wrench.force.y - self.target_wrench.force.y)  * self.admittance[1]
+        self.admittance_position_offset.position.z = (self.filtered_wrench.force.z - self.target_wrench.force.z)  * self.admittance[2]
+        rx = (self.filtered_wrench.torque.x - self.target_wrench.torque.x) * self.admittance[3]
+        ry = (self.filtered_wrench.torque.y - self.target_wrench.torque.y) * self.admittance[4]
+        rz = (self.filtered_wrench.torque.z - self.target_wrench.torque.z) * self.admittance[5]
         q = transformations.quaternion_from_euler(rx,ry,rz)
         self.admittance_position_offset.orientation.x = q[0]
         self.admittance_position_offset.orientation.y = q[1]
@@ -327,6 +331,10 @@ class DezentralizedAdmittanceController():
             self.pose_error_local = Pose()
             self.pose_error_local.orientation.w = 1.0
             rospy.logwarn_throttle(3,"Reference not set, ignoring pose error")
+        elif self.force_control_mode:
+            self.pose_error_local = Pose()
+            self.pose_error_local.orientation.w = 1.0
+            rospy.logwarn_throttle(3,"Force control mode, ignoring pose error")
 
 
     def compute_target_pose(self):
@@ -469,6 +477,9 @@ class DezentralizedAdmittanceController():
 
     def mir_pose_cb(self,data = Pose()):
         self.mir_pose = data
+
+    def target_wrench_cb(self,data = WrenchStamped()):
+        self.target_wrench = data.wrench
 
 
 if __name__ == "__main__":
