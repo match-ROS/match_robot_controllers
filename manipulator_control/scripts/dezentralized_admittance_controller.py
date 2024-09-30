@@ -278,8 +278,8 @@ class DezentralizedAdmittanceController():
             self.manipulator_vel.angular.x =  vel_local.angular.x
             self.manipulator_vel.angular.y =  vel_local.angular.y
         else:
-            self.manipulator_vel.linear.x =  -vel_local.linear.x
-            self.manipulator_vel.linear.y =  -vel_local.linear.y
+            self.manipulator_vel.linear.x =  vel_local.linear.x
+            self.manipulator_vel.linear.y =  vel_local.linear.y
 
             self.manipulator_vel.angular.x =  -vel_local.angular.x
             self.manipulator_vel.angular.y =  -vel_local.angular.y
