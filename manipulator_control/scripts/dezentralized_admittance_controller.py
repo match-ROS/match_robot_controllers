@@ -64,6 +64,7 @@ class DezentralizedAdmittanceController():
         self.target_pose.header.frame_id = 'map'
         self.pose_error_global = Pose()
         self.pose_error_local = Pose()
+        self.manipulator_local_pose = Pose()
         self.wrench_average = Wrench()
         self.admittance_position_offset = Pose()
         self.equilibrium_position_offset = Pose()
@@ -114,10 +115,11 @@ class DezentralizedAdmittanceController():
         rospy.wait_for_message(self.mir_pose_topic, PoseStamped)
         rospy.loginfo("got mir pose")
         rospy.wait_for_message(self.wrench_topic, WrenchStamped)
-        rospy.loginfo("First messages received")
+        rospy.loginfo("First wrench received")
+        print(self.manipulator_local_pose_topic)
+        rospy.wait_for_message(self.manipulator_local_pose_topic, Pose)
+        rospy.loginfo("got manipulator local pose")
 
-        rospy.loginfo("Waiting for transform from wrench frame to manipulator base frame")
-        rospy.loginfo("Got transform from wrench frame to manipulator base frame")
 
         # get pose offset from mir to manipulator
         self.get_manipulator_pose_offset()
@@ -268,6 +270,7 @@ class DezentralizedAdmittanceController():
         vel_local.angular.y = R[1,0]*self.manipulator_vel.angular.x + R[1,1]*self.manipulator_vel.angular.y + R[1,2]*self.manipulator_vel.angular.z
         vel_local.angular.z = R[2,0]*self.manipulator_vel.angular.x + R[2,1]*self.manipulator_vel.angular.y + R[2,2]*self.manipulator_vel.angular.z
 
+        # for some reason the angles are inverted when using MOCAP. This is a workaround. TODO: fix this
         if self.external_localization:
             self.manipulator_vel.linear.x =  vel_local.linear.x
             self.manipulator_vel.linear.y =  vel_local.linear.y
