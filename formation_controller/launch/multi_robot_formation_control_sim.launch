@@ -1,0 +1,40 @@
+<?xml version="1.0" ?>
+
+<!-- While this code does work on the MuR hardware, it is highly suggested to run each instance of the follower control on a separate robot. 
+The bandwith required to run multiple instances of the follower control on the same machine is too high and will result in a lot of lag. -->
+
+
+
+<launch>
+    <arg name="robot1_name"  default="mur620a"/>
+    <arg name="robot2_name"  default="mur620b"/>
+    <arg name="robot3_name"  default="mur620c"/>
+    <arg name="robot4_name"  default="mur620d"/>
+    <arg name="follower_cmd_vel_topic" default='/mobile_base_controller/cmd_vel'/>   <!-- use global_regulated_cmd_vel for the real robot -->
+    <arg name="relative_position_a" default="[-1.0, -1.0, 0]"/>
+    <arg name="relative_position_b" default="[1.0, 1.0, -1.0]"/>
+    <arg name="relative_position_c" default="[1.0, -1.0, 0]"/>
+    <arg name="relative_position_d" default="[-1.0, 1.0, 0]"/>
+
+    <include file="$(find formation_controller)/launch/mur620a.launch">
+            <arg name="relative_position" value="$(arg relative_position_a)"/>
+            <arg name="follower_cmd_vel_topic" value="/$(arg robot1_name)/$(arg follower_cmd_vel_topic)"/>
+    </include> 
+
+    <include file="$(find formation_controller)/launch/mur620b.launch">
+            <arg name="relative_position" value="$(arg relative_position_b)"/>
+            <arg name="follower_cmd_vel_topic" value="/$(arg robot2_name)/$(arg follower_cmd_vel_topic)"/>
+    </include>
+
+    <include file="$(find formation_controller)/launch/mur620c.launch">
+            <arg name="relative_position" value="$(arg relative_position_c)"/>
+            <arg name="follower_cmd_vel_topic" value="/$(arg robot3_name)/$(arg follower_cmd_vel_topic)"/>
+    </include>
+
+    <include file="$(find formation_controller)/launch/mur620d.launch">
+            <arg name="relative_position" value="$(arg relative_position_d)"/>
+            <arg name="follower_cmd_vel_topic" value="/$(arg robot4_name)/$(arg follower_cmd_vel_topic)"/>
+    </include>
+
+
+</launch>
