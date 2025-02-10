@@ -24,7 +24,7 @@ class UpdateRelativePose:
         self.relative_pose.pose.orientation.w = 1.0
         self.config()
 
-        self.relative_pose_pub = rospy.Publisher(self.relative_pose_topic, PoseStamped, queue_size=1)
+        self.relative_pose_pub = rospy.Publisher(self.relative_pose_topic, PoseStamped, queue_size=1, latch=True)
         rospy.sleep(1) # wait for publisher to be registered
 
         self.update_relative_pose()
