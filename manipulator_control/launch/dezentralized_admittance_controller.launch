@@ -3,7 +3,7 @@
   <arg name="tf_prefix"         default="mur620a" />
   <arg name="UR_prefix"  default="UR10_l" />
   <arg name="relative_pose"          default="[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]" />
-  <arg name="admittance" default="[0.0006,0.0006,0.0015,0.0,0.0,0.0]" />
+  <arg name="admittance" default="[0.0016,0.0016,0.0015,0.0,0.0,0.0]" />
   <!-- <arg name="admittance" default="[0.000,0.000,0.000,0.0,0.0,0.0]" /> -->
   
   <arg name="object_pose_topic" default="/virtual_object/object_pose" />
@@ -43,6 +43,7 @@
       <param name="mir_base_frame" type="string" value="$(arg mir_base_frame)"/>
       <param name="relative_pose_topic" type="string" value="$(arg relative_pose_topic)"/>
       <param name="external_localization" type="bool" value="$(arg external_localization)"/>
+      <param name="set_reference_at_runtime" type="bool" value="$(arg set_reference_at_runtime)"/>
     </node>
   </group>
 

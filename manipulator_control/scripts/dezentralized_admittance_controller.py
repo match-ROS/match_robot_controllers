@@ -324,7 +324,6 @@ class DezentralizedAdmittanceController():
         self.pose_error_local.orientation.w = q[3]
 
         #print(self.pose_error_local)
-
         if self.set_reference_at_runtime and self.reference_set == False:
             self.admittance = self.free_drive_admittance # make the robot easier to move while no reference is set
             self.pose_error_local = Pose()
