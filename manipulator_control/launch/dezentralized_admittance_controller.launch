@@ -3,7 +3,7 @@
   <arg name="tf_prefix"         default="mur620a" />
   <arg name="UR_prefix"  default="UR10_l" />
   <arg name="relative_pose"          default="[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]" />
-  <arg name="admittance" default="[0.0016,0.0016,0.0015,0.0,0.0,0.0]" />
+  <arg name="admittance" default="[0.0010,0.0010,0.0015,0.0,0.0,0.0]" />
   <!-- <arg name="admittance" default="[0.000,0.000,0.000,0.0,0.0,0.0]" /> -->
   
   <arg name="object_pose_topic" default="/virtual_object/object_pose" />
