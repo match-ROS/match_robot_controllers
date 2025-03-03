@@ -54,7 +54,7 @@ class UpdateRelativePose:
         q = transformations.quaternion_multiply(q_diff, [object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w])
         #q = transformations.quaternion_multiply(q_diff, transformations.quaternion_inverse([object_pose.pose.orientation.x, object_pose.pose.orientation.y, object_pose.pose.orientation.z, object_pose.pose.orientation.w]))
         # rotate q by 180 degrees around the z-axis
-        q_inv = transformations.quaternion_multiply(q, transformations.quaternion_about_axis(3.14159265359, [0, 0, 1]))
+        q_inv = transformations.quaternion_multiply(q, transformations.quaternion_about_axis(0.5*3.14159265359, [0, 0, 1]))
         q_inv = q
 
         relative_pose_transformed.pose.orientation.x = q_inv[0]

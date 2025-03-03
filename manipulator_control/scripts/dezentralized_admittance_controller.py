@@ -265,6 +265,8 @@ class DezentralizedAdmittanceController():
         vel_local = Twist()
         vel_local.linear.x = R[0,0]*self.manipulator_vel.linear.x + R[0,1]*self.manipulator_vel.linear.y + R[0,2]*self.manipulator_vel.linear.z
         vel_local.linear.y = R[1,0]*self.manipulator_vel.linear.x + R[1,1]*self.manipulator_vel.linear.y + R[1,2]*self.manipulator_vel.linear.z
+        #vel_local.linear.z = R[2,0]*self.manipulator_vel.linear.x + R[2,1]*self.manipulator_vel.linear.y + R[2,2]*self.manipulator_vel.linear.z
+        vel_local.linear.z = self.manipulator_vel.linear.z
 
         vel_local.angular.x = R[0,0]*self.manipulator_vel.angular.x + R[0,1]*self.manipulator_vel.angular.y + R[0,2]*self.manipulator_vel.angular.z
         vel_local.angular.y = R[1,0]*self.manipulator_vel.angular.x + R[1,1]*self.manipulator_vel.angular.y + R[1,2]*self.manipulator_vel.angular.z
@@ -282,14 +284,14 @@ class DezentralizedAdmittanceController():
                 self.manipulator_vel.linear.x =  -vel_local.linear.x
                 self.manipulator_vel.angular.x =  -vel_local.angular.x
                 self.manipulator_vel.angular.z =  vel_local.angular.z
+                self.manipulator_vel.linear.z =  vel_local.linear.z
             else:
                 self.manipulator_vel.linear.x =  vel_local.linear.x
                 self.manipulator_vel.angular.x =  vel_local.angular.x
                 self.manipulator_vel.angular.z =  -vel_local.angular.z
-            self.manipulator_vel.linear.y =  -vel_local.linear.y
-            self.manipulator_vel.linear.z =  -vel_local.linear.z
-
+                self.manipulator_vel.linear.z = -self.grasping_point_velocity_manipulator.linear.z + self.equilibrium_position_offset.position.z * self.position_error_gain[2]
             
+            self.manipulator_vel.linear.y =  -vel_local.linear.y
             self.manipulator_vel.angular.y =  -vel_local.angular.y
             
 
