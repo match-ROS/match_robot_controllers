@@ -18,7 +18,7 @@
   <arg name="manipulator_base_frame" default="$(arg tf_prefix)/$(arg UR_prefix)/base_link" />
   <arg name="mir_base_frame" default="$(arg tf_prefix)/base_link" />
   <arg name="relative_pose_topic" default="/$(arg tf_prefix)/$(arg UR_prefix)/relative_pose" />
-  <arg name="external_localization" default="True" />
+  <arg name="external_localization" default="False" />
   <arg name="set_reference_at_runtime" default="False" />
 
 

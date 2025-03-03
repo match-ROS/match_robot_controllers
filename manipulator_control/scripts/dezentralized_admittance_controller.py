@@ -278,11 +278,20 @@ class DezentralizedAdmittanceController():
             self.manipulator_vel.angular.x =  vel_local.angular.x
             self.manipulator_vel.angular.y =  vel_local.angular.y
         else:
-            self.manipulator_vel.linear.x =  vel_local.linear.x
-            self.manipulator_vel.linear.y =  vel_local.linear.y
+            if self.tf_prefix == 'mur620c':
+                self.manipulator_vel.linear.x =  -vel_local.linear.x
+                self.manipulator_vel.angular.x =  -vel_local.angular.x
+                self.manipulator_vel.angular.z =  vel_local.angular.z
+            else:
+                self.manipulator_vel.linear.x =  vel_local.linear.x
+                self.manipulator_vel.angular.x =  vel_local.angular.x
+                self.manipulator_vel.angular.z =  -vel_local.angular.z
+            self.manipulator_vel.linear.y =  -vel_local.linear.y
+            self.manipulator_vel.linear.z =  -vel_local.linear.z
 
-            self.manipulator_vel.angular.x =  -vel_local.angular.x
+            
             self.manipulator_vel.angular.y =  -vel_local.angular.y
+            
 
     def compute_pose_error(self):
         # 
