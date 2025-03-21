@@ -62,7 +62,7 @@ class VirtualObject():
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "map"
-            t.child_frame_id = "virtual_object/base_link"
+            t.child_frame_id = self.object_frame + "/base_link"
             t.transform.translation = self.object_pose.pose.position
             t.transform.rotation = self.object_pose.pose.orientation
             br.sendTransform(t)
