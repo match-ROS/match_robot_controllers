@@ -1,6 +1,7 @@
 <launch>
 
   <arg name="frame_id"         default="map" />
+  <arg name="tf_prefix"        default="" />
 
 
 
@@ -9,6 +10,7 @@
 
     <node name="virtual_object_node" pkg="virtual_object" type="virtual_object.py" output="screen">
       <param name="frame_id" type="string" value="$(arg frame_id)"/>
+      <param name="tf_prefix" type="string" value="$(arg tf_prefix)"/>
     </node>
   </group>
 

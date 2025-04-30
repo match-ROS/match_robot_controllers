@@ -34,7 +34,7 @@ class VirtualObjectHelper():
         self.object_pose_topic = rospy.get_param('~object_pose_topic','object_pose')
         self.cmd_vel_topic = rospy.get_param('~cmd_vel_topic','object_cmd_vel')
         self.virtual_leader.cmd_vel_timeout = rospy.get_param('~cmd_vel_timeout',0.1)
-        self.virtual_leader.object_frame = rospy.get_param('~object_frame','virtual_object')
+        self.virtual_leader.tf_prefix = rospy.get_param('~tf_prefix','')
 
     def set_pose_cb(self,data = PoseStamped()):
         self.virtual_leader.object_pose.pose = data.pose
