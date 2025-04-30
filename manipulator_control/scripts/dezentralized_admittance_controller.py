@@ -440,7 +440,7 @@ class DezentralizedAdmittanceController():
             rospy.loginfo("Reference set")
 
     def relative_pose_offset_cb(self,data = Pose()):
-        # get the offset from the relative pose
+        # The offset allwos to set a offset to the relative pose for example to stretch the component 
         self.relative_offset = data
         self.relative_pose_offset = deepcopy(self.relative_pose)
         self.relative_pose_offset[0] += self.relative_offset.position.x
