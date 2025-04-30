@@ -31,9 +31,11 @@ class DezentralizedAdmittanceController():
         self.manipulator_base_frame = rospy.get_param('~manipulator_base_frame','mur620a/UR10_l/base_link')
         self.mir_base_frame = rospy.get_param('~mir_base_frame','mur620a/base_link')
         self.relative_pose_topic = rospy.get_param('~relative_pose_topic','/mur620a/UR10_l/relative_pose')
+        self.relative_pose_offset_topic = rospy.get_param('~relative_pose_offset_topic','/mur620a/UR10_l/relative_pose_offset')
         self.ur_prefix = rospy.get_param('~ur_prefix','UR10_l')
         self.tf_prefix = rospy.get_param('~tf_prefix','mur620a')
         self.relative_pose = rospy.get_param('~relative_pose', [0.0,0.5,0.0,0,0,0])
+        self.relative_pose_offset = self.relative_pose
         self.admittance = rospy.get_param('~admittance', [0.002,0.002,0.001,0.0,0.0,0.01])
         #self.admittance = rospy.get_param('~admittance', [0.001,0.0,0.001,0.0,0.0,0.0])
         self.wrench_filter_alpha = rospy.get_param('~wrench_filter_alpha', 0.07)
@@ -96,6 +98,7 @@ class DezentralizedAdmittanceController():
         rospy.Subscriber(self.wrench_topic, WrenchStamped, self.wrench_cb)
         rospy.Subscriber(self.mir_cmd_vel_topic, Twist, self.mir_cmd_vel_cb)
         rospy.Subscriber(self.relative_pose_topic, PoseStamped, self.relative_pose_cb)
+        rospy.Subscriber(self.relative_pose_offset_topic, Pose, self.relative_pose_offset_cb)
         rospy.loginfo("Subscribers started" + self.relative_pose_topic)
 
 
@@ -214,9 +217,9 @@ class DezentralizedAdmittanceController():
 
     def compute_grasping_point_velocity_local(self):
         # compute the local grasping point velocity based on the object velocity and the relative pose
-        self.grasping_point_velocity_local.linear.x = self.relative_pose[2] * self.object_vel.angular.y - self.relative_pose[1] * self.object_vel.angular.z
-        self.grasping_point_velocity_local.linear.y = self.relative_pose[0] * self.object_vel.angular.z - self.relative_pose[2] * self.object_vel.angular.x
-        self.grasping_point_velocity_local.linear.z = self.relative_pose[1] * self.object_vel.angular.x - self.relative_pose[0] * self.object_vel.angular.y  
+        self.grasping_point_velocity_local.linear.x = self.relative_pose_offset[2] * self.object_vel.angular.y - self.relative_pose_offset[1] * self.object_vel.angular.z
+        self.grasping_point_velocity_local.linear.y = self.relative_pose_offset[0] * self.object_vel.angular.z - self.relative_pose_offset[2] * self.object_vel.angular.x
+        self.grasping_point_velocity_local.linear.z = self.relative_pose_offset[1] * self.object_vel.angular.x - self.relative_pose_offset[0] * self.object_vel.angular.y  
         self.grasping_point_velocity_local.angular.x = self.object_vel.angular.x
         self.grasping_point_velocity_local.angular.y = self.object_vel.angular.y
         self.grasping_point_velocity_local.angular.z = self.object_vel.angular.z
@@ -336,12 +339,12 @@ class DezentralizedAdmittanceController():
         p = [self.object_pose.pose.position.x,self.object_pose.pose.position.y,self.object_pose.pose.position.z]
         p = transformations.translation_matrix(p)
         T = transformations.concatenate_matrices(p,R)
-        T = transformations.concatenate_matrices(T,transformations.translation_matrix(self.relative_pose))
+        T = transformations.concatenate_matrices(T,transformations.translation_matrix(self.relative_pose_offset))
 
         self.target_pose.pose.position.x = T[0,3]
         self.target_pose.pose.position.y = T[1,3]
         self.target_pose.pose.position.z = T[2,3]
-        relative_pose_q = transformations.quaternion_from_euler(self.relative_pose[3],self.relative_pose[4],self.relative_pose[5])
+        relative_pose_q = transformations.quaternion_from_euler(self.relative_pose_offset[3],self.relative_pose_offset[4],self.relative_pose_offset[5])
         q = transformations.quaternion_multiply([self.object_pose.pose.orientation.x,self.object_pose.pose.orientation.y,self.object_pose.pose.orientation.z,self.object_pose.pose.orientation.w],relative_pose_q)
         self.target_pose.pose.orientation.x = q[0]
         self.target_pose.pose.orientation.y = q[1]
@@ -430,10 +433,19 @@ class DezentralizedAdmittanceController():
     def relative_pose_cb(self,data = PoseStamped()):
         euler = transformations.euler_from_quaternion([data.pose.orientation.x,data.pose.orientation.y,data.pose.orientation.z,data.pose.orientation.w])
         self.relative_pose = [data.pose.position.x,data.pose.position.y,data.pose.position.z,euler[0],euler[1],euler[2]]
+        self.relative_pose_offset = [data.pose.position.x+self.relative_offset.position.x,data.pose.position.y+self.relative_offset.position.x,data.pose.position.z+self.relative_offset.position.x,euler[0],euler[1],euler[2]]
         if self.reference_set == False:
             self.reference_set = True
             self.admittance = rospy.get_param('~admittance', [0.0005,0.0005,0.001,0.0,0.0,0.01])
             rospy.loginfo("Reference set")
+
+    def relative_pose_offset_cb(self,data = Pose()):
+        # get the offset from the relative pose
+        self.relative_offset = data
+        self.relative_pose_offset = deepcopy(self.relative_pose)
+        self.relative_pose_offset[0] += self.relative_offset.position.x
+        self.relative_pose_offset[1] += self.relative_offset.position.y
+        self.relative_pose_offset[2] += self.relative_offset.position.z
 
     def wrench_cb(self,data = WrenchStamped()):
         wrench = data.wrench
